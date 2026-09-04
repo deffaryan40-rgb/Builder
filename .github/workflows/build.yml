@@ -58,31 +58,46 @@ jobs:
             -H "Accept: application/octet-stream" \
             "${{ github.event.inputs.zip_url }}" \
             -o project.zip \
-            -w "HTTP Status: %{http_code}\n"
+            -w "\n=== HTTP Status: %{http_code} ===\n=== Final URL: %{url_effective} ===\n"
 
-          SIZE=$(stat -c%s project.zip 2>/dev/null || echo 0)
-          if [ "$SIZE" -eq 0 ]; then
-            echo "❌ Download gagal, file kosong (0 byte). Diagnostik:"
-            file project.zip
-            xxd project.zip | head -2
-            exit 1
-          fi
-          echo "✅ Download OK, ukuran: $(ls -lh project.zip | awk '{print $5}')"
+          echo ""
+          echo "=== File Info ==="
+          ls -lh project.zip
+
+          echo ""
+          echo "=== File Type ==="
+          file project.zip
+
+          echo ""
+          echo "=== First Bytes ==="
+          xxd project.zip | head -2
 
       # =========================
       # EXTRACT ZIP
       # =========================
       - name: Extract ZIP
         run: |
-          echo "=== Extracting ZIP ==="
+          echo "=== Validating ZIP ==="
 
-          if ! unzip -q project.zip -d project_raw; then
-            echo "❌ File bukan ZIP valid atau corrupt!"
-            unzip -t project.zip || true
+          if ! unzip -t project.zip > /dev/null 2>&1; then
+            echo "❌ File bukan ZIP valid!"
+            echo ""
+            echo "=== Isi file ==="
+            cat project.zip
             exit 1
           fi
 
-          echo "✅ Extract OK"
+          echo "✅ ZIP valid"
+
+          echo ""
+          echo "=== Extracting ZIP ==="
+          unzip -q project.zip -d project_raw
+
+          echo ""
+          echo "=== Isi folder project_raw ==="
+          find project_raw | head -50
+
+          echo ""
           echo "=== Mengunci Project Dir (Manut Mode) ==="
 
           SUB_DIR_COUNT=$(find project_raw -maxdepth 1 -mindepth 1 -type d | wc -l)
