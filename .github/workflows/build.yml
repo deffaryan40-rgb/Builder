@@ -32,7 +32,7 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       # Percepat build Gradle: daemon off (single run), parallel on, build cache on
-      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.configureondemand=true -Dorg.gradle.jvmargs=-Xmx4g"
+      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.configureondemand=true -Dorg.gradle.jvmargs=-Xmx3g"
 
     steps:
 
@@ -52,52 +52,37 @@ jobs:
           echo "=== Downloading ZIP ==="
           echo "URL: ${{ github.event.inputs.zip_url }}"
 
-          curl -L \
+          curl -L --compressed \
             --retry 3 --retry-delay 5 --retry-connrefused \
             -H "Authorization: Bearer ${{ secrets.GH_TOKEN }}" \
             -H "Accept: application/octet-stream" \
             "${{ github.event.inputs.zip_url }}" \
             -o project.zip \
-            -w "\n=== HTTP Status: %{http_code} ===\n=== Final URL: %{url_effective} ===\n"
+            -w "HTTP Status: %{http_code}\n"
 
-          echo ""
-          echo "=== File Info ==="
-          ls -lh project.zip
-
-          echo ""
-          echo "=== File Type ==="
-          file project.zip
-
-          echo ""
-          echo "=== First Bytes ==="
-          xxd project.zip | head -2
+          SIZE=$(stat -c%s project.zip 2>/dev/null || echo 0)
+          if [ "$SIZE" -eq 0 ]; then
+            echo "❌ Download gagal, file kosong (0 byte). Diagnostik:"
+            file project.zip
+            xxd project.zip | head -2
+            exit 1
+          fi
+          echo "✅ Download OK, ukuran: $(ls -lh project.zip | awk '{print $5}')"
 
       # =========================
       # EXTRACT ZIP
       # =========================
       - name: Extract ZIP
         run: |
-          echo "=== Validating ZIP ==="
+          echo "=== Extracting ZIP ==="
 
-          if ! unzip -t project.zip > /dev/null 2>&1; then
-            echo "❌ File bukan ZIP valid!"
-            echo ""
-            echo "=== Isi file ==="
-            cat project.zip
+          if ! unzip -q project.zip -d project_raw; then
+            echo "❌ File bukan ZIP valid atau corrupt!"
+            unzip -t project.zip || true
             exit 1
           fi
 
-          echo "✅ ZIP valid"
-
-          echo ""
-          echo "=== Extracting ZIP ==="
-          unzip -q project.zip -d project_raw
-
-          echo ""
-          echo "=== Isi folder project_raw ==="
-          find project_raw | head -50
-
-          echo ""
+          echo "✅ Extract OK"
           echo "=== Mengunci Project Dir (Manut Mode) ==="
 
           SUB_DIR_COUNT=$(find project_raw -maxdepth 1 -mindepth 1 -type d | wc -l)
@@ -198,7 +183,7 @@ jobs:
           if [ -f "pubspec.yaml" ]; then
             echo "🔥 Project Flutter Terdeteksi! Kompilasi via Flutter SDK..."
 
-            if ! flutter build apk --${{ github.event.inputs.build_type }} --no-tree-shake-icons --target-platform android-arm64 2>&1 | tee build_report.txt; then
+            if ! flutter build apk --${{ github.event.inputs.build_type }} --no-tree-shake-icons --target-platform android-arm64 --no-shrink 2>&1 | tee build_report.txt; then
               BUILD_FAILED=1
             fi
 
