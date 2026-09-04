@@ -32,7 +32,7 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       # Percepat build Gradle: daemon off (single run), parallel on, build cache on
-      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.jvmargs=-Xmx4g"
+      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.configureondemand=true -Dorg.gradle.jvmargs=-Xmx4g"
 
     steps:
 
@@ -53,6 +53,7 @@ jobs:
           echo "URL: ${{ github.event.inputs.zip_url }}"
 
           curl -L \
+            --retry 3 --retry-delay 5 --retry-connrefused \
             -H "Authorization: Bearer ${{ secrets.GH_TOKEN }}" \
             -H "Accept: application/octet-stream" \
             "${{ github.event.inputs.zip_url }}" \
@@ -121,30 +122,6 @@ jobs:
           java-version: "17"
 
       # =========================
-      # CACHE: pub-cache & gradle
-      # (dipasang setelah extract karena butuh tahu isi project,
-      #  tapi sebelum Setup Flutter biar langsung kepakai)
-      # =========================
-      - name: Cache pub dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.pub-cache
-          key: pub-${{ runner.os }}-${{ hashFiles(format('{0}/pubspec.lock', env.PROJECT_DIR)) }}
-          restore-keys: |
-            pub-${{ runner.os }}-
-
-      - name: Cache Gradle
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles(format('{0}/**/*.gradle*', env.PROJECT_DIR), format('{0}/**/gradle-wrapper.properties', env.PROJECT_DIR)) }}
-          restore-keys: |
-            gradle-${{ runner.os }}-
-
-      # =========================
       # FLUTTER
       # (versi action di-pin ke rilis stabil, bukan @main,
       #  supaya tidak tiba-tiba berubah/rusak)
@@ -158,8 +135,11 @@ jobs:
 
       # ==========================================================
       # 🔍 TAHAP ANALYZE — STEP 1: Jalankan & cetak hasil
+      # (SKIP total kalau only_analyze=false, biar build normal
+      #  langsung tancap ke tahap build tanpa buang waktu analyze)
       # ==========================================================
       - name: Analyze Project Code
+        if: ${{ github.event.inputs.only_analyze == 'true' }}
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
           echo "=== Starting Automated Code Analysis ==="
@@ -199,7 +179,7 @@ jobs:
         run: |
           echo "=== Running flutter pub get ==="
           if [ -f "pubspec.yaml" ]; then
-            timeout 120s flutter pub get || echo "⚠️ Gagal download package karena network server, coba lanjut aja..."
+            timeout 90s flutter pub get || echo "⚠️ Gagal download package karena network server, coba lanjut aja..."
           else
             echo "☕ Bukan project Flutter standar, skip pub get!"
           fi
@@ -218,7 +198,7 @@ jobs:
           if [ -f "pubspec.yaml" ]; then
             echo "🔥 Project Flutter Terdeteksi! Kompilasi via Flutter SDK..."
 
-            if ! flutter build apk --${{ github.event.inputs.build_type }} 2>&1 | tee build_report.txt; then
+            if ! flutter build apk --${{ github.event.inputs.build_type }} --no-tree-shake-icons --target-platform android-arm64 2>&1 | tee build_report.txt; then
               BUILD_FAILED=1
             fi
 
@@ -278,12 +258,29 @@ jobs:
       # =========================
       - name: Check APK Output
         run: |
-          echo "=== APK Output Scanning (Global Mode) ==="
+          echo "=== APK Output Scanning (Fast Path Mode) ==="
 
-          echo "Mencari file APK di seluruh direktori..."
-          find $GITHUB_WORKSPACE -name "*.apk"
+          APK_FOUND=""
 
-          APK_FOUND=$(find $GITHUB_WORKSPACE -name "*.apk" | head -n 1)
+          # Coba path standar Flutter dulu (instan, tidak scan seluruh workspace)
+          FLUTTER_APK=$(find "${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk" -maxdepth 1 -name "*.apk" 2>/dev/null | head -n 1)
+          if [ -n "$FLUTTER_APK" ]; then
+            APK_FOUND="$FLUTTER_APK"
+          fi
+
+          # Coba path standar Gradle native kalau belum ketemu
+          if [ -z "$APK_FOUND" ]; then
+            GRADLE_APK=$(find "${{ env.PROJECT_DIR }}" -path "*/build/outputs/apk/*" -name "*.apk" 2>/dev/null | head -n 1)
+            if [ -n "$GRADLE_APK" ]; then
+              APK_FOUND="$GRADLE_APK"
+            fi
+          fi
+
+          # Fallback terakhir: scan seluruh workspace kalau dua di atas gagal
+          if [ -z "$APK_FOUND" ]; then
+            echo "⚠️ Tidak ketemu di path standar, fallback scan seluruh workspace..."
+            APK_FOUND=$(find $GITHUB_WORKSPACE -name "*.apk" 2>/dev/null | head -n 1)
+          fi
 
           if [ -z "$APK_FOUND" ]; then
             echo "Error: Berkas biner APK beneran gak dicetak sama sekali oleh compiler."
@@ -311,3 +308,4 @@ jobs:
           path: ${{ env.PROJECT_DIR }}/${{ env.APK_PATH }}
           retention-days: 1
           if-no-files-found: error
+          compression-level: 0
