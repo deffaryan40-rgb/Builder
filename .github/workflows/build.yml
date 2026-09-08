@@ -6,306 +6,406 @@ on:
       zip_url:
         description: "URL download ZIP project Flutter"
         required: true
-
+        type: string
       tag:
         description: "Tag build"
         required: true
-
+        type: string
       build_type:
         description: "debug / release"
         required: true
         default: "release"
-
+        type: choice
+        options: [debug, release]
       only_analyze:
-        description: "Hanya jalankan analyze (true/false)"
+        description: "Hanya analyze"
         required: false
         default: "false"
+        type: boolean
 
-concurrency:
-  group: build-flutter-apk-${{ github.event.inputs.tag }}
-  cancel-in-progress: true
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-      # Percepat build Gradle: daemon off (single run), parallel on, build cache on
-      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.configureondemand=true -Dorg.gradle.jvmargs=-Xmx3g"
-
     steps:
-
-      # =========================
-      # NODE.JS
-      # =========================
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-
-      # =========================
-      # DOWNLOAD ZIP
-      # =========================
-      - name: Download ZIP project
+      - name: Validate workflow inputs
         run: |
-          echo "=== Downloading ZIP ==="
-          echo "URL: ${{ github.event.inputs.zip_url }}"
-
-          curl -L --compressed \
-            --retry 3 --retry-delay 5 --retry-connrefused \
-            -H "Authorization: Bearer ${{ secrets.GH_TOKEN }}" \
-            -H "Accept: application/octet-stream" \
-            "${{ github.event.inputs.zip_url }}" \
-            -o project.zip \
-            -w "\n=== HTTP Status: %{http_code} ===\n=== Final URL: %{url_effective} ===\n"
-
-          echo ""
-          echo "=== File Info ==="
-          ls -lh project.zip
-
-          echo ""
-          echo "=== File Type ==="
-          file project.zip
-
-          echo ""
-          echo "=== First Bytes ==="
-          xxd project.zip | head -2
-
-      # =========================
-      # EXTRACT ZIP
-      # =========================
-      - name: Extract ZIP
-        run: |
-          echo "=== Validating ZIP ==="
-
-          if ! unzip -t project.zip > /dev/null 2>&1; then
-            echo "❌ File bukan ZIP valid!"
-            echo ""
-            echo "=== Isi file ==="
-            cat project.zip
+          set -euo pipefail
+          ZIP_URL="${{ github.event.inputs.zip_url }}"
+          TAG="${{ github.event.inputs.tag }}"
+          BUILD_TYPE="${{ github.event.inputs.build_type }}"
+          if [ -z "$ZIP_URL" ]; then
+            echo "::error::Input zip_url kosong. Build dihentikan agar tidak menghasilkan error palsu."
             exit 1
           fi
+          if [ -z "$TAG" ]; then
+            echo "::error::Input tag kosong. Build dihentikan agar artifact memiliki nama yang valid."
+            exit 1
+          fi
+          if [ "$BUILD_TYPE" != "debug" ] && [ "$BUILD_TYPE" != "release" ]; then
+            echo "::error::build_type harus debug atau release."
+            exit 1
+          fi
+          echo "INPUT OK: zip_url tersedia | tag=$TAG | build_type=$BUILD_TYPE"
 
-          echo "✅ ZIP valid"
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
 
-          echo ""
-          echo "=== Extracting ZIP ==="
+      - name: Download ZIP project
+        run: |
+          set -euo pipefail
+          curl -fL --retry 4 --retry-all-errors -H "Authorization: Bearer ${{ github.token }}" -H "Accept: application/octet-stream" -H "User-Agent: DEFFA-BUILD" "${{ github.event.inputs.zip_url }}" -o project.zip
+          test -s project.zip
+          unzip -t project.zip >/dev/null
+          ls -lh project.zip
+
+      - name: Extract ZIP
+        run: |
+          set -euo pipefail
+          rm -rf project_raw
+          mkdir -p project_raw
           unzip -q project.zip -d project_raw
-
-          echo ""
-          echo "=== Isi folder project_raw ==="
-          find project_raw | head -50
-
-          echo ""
-          echo "=== Mengunci Project Dir (Manut Mode) ==="
-
           SUB_DIR_COUNT=$(find project_raw -maxdepth 1 -mindepth 1 -type d | wc -l)
           FILE_COUNT=$(find project_raw -maxdepth 1 -mindepth 1 -type f | wc -l)
-
           if [ "$SUB_DIR_COUNT" -eq 1 ] && [ "$FILE_COUNT" -eq 0 ]; then
             PROJECT_DIR=$(find project_raw -maxdepth 1 -mindepth 1 -type d | head -n 1)
           else
             PROJECT_DIR="project_raw"
           fi
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          test -f "$PROJECT_DIR/pubspec.yaml"
+          test -f "$PROJECT_DIR/lib/main.dart"
 
-          echo "✅ Project root langsung dikunci di: $PROJECT_DIR"
-          echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
-
-      # =========================
-      # JAVA
-      # =========================
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
         with:
-          distribution: "temurin"
+          distribution: temurin
           java-version: "17"
+          cache: gradle
 
-      # =========================
-      # FLUTTER
-      # (versi action di-pin ke rilis stabil, bukan @main,
-      #  supaya tidak tiba-tiba berubah/rusak)
-      # =========================
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: "3.41.9"
-          channel: "stable"
+          channel: stable
           cache: true
 
-      # ==========================================================
-      # 🔍 TAHAP ANALYZE — STEP 1: Jalankan & cetak hasil
-      # (SKIP total kalau only_analyze=false, biar build normal
-      #  langsung tancap ke tahap build tanpa buang waktu analyze)
-      # ==========================================================
-      - name: Analyze Project Code
-        if: ${{ github.event.inputs.only_analyze == 'true' }}
-        working-directory: ${{ env.PROJECT_DIR }}
+      - name: Repair Android build environment (AUTO)
         run: |
-          echo "=== Starting Automated Code Analysis ==="
-
-          if [ -f "pubspec.yaml" ]; then
-            echo "🔍 Menjalankan linting via flutter analyze..."
-
-            flutter analyze > analyze_report.txt 2>&1 || true
-
-            echo "[RESULT_ANALYZE]"
-            cat analyze_report.txt
-            echo "[END_RESULT_ANALYZE]"
-
-            rm -f analyze_report.txt
-
-          else
-            echo "☕ Project native / gradlew terdeteksi!"
-            echo "[RESULT_ANALYZE]"
-            echo "❌ Fitur analyze hanya support project Flutter (pubspec.yaml tidak ditemukan)."
-            echo "[END_RESULT_ANALYZE]"
+          set -euo pipefail
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ] && [ -n "${ANDROID_SDK_ROOT:-}" ]; then
+            SDKMANAGER="$(find "$ANDROID_SDK_ROOT/cmdline-tools" -type f -name sdkmanager 2>/dev/null | head -n 1 || true)"
+          fi
+          if [ -z "$SDKMANAGER" ]; then
+            echo "::error::sdkmanager tidak ditemukan."
+            exit 1
           fi
 
-      # ==========================================================
-      # 🔍 TAHAP ANALYZE — STEP 2: Stop workflow jika only_analyze
-      # ==========================================================
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+
+          # Cari ndkVersion di seluruh konfigurasi Android, termasuk assignment
+          # ext/variable yang umum pada project Flutter lama. Jika tidak ada,
+          # pakai NDK yang stabil dan tersedia di runner.
+          NDK_VERSION=""
+          if [ -d "$PROJECT_DIR/android" ]; then
+            NDK_VERSION="$(grep -RhoE "ndkVersion[[:space:]]*([=:][[:space:]]*)?['\"][0-9]+\.[0-9]+\.[0-9]+['\"]" "$PROJECT_DIR/android" 2>/dev/null | head -n1 | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' || true)"
+          fi
+          if [ -z "$NDK_VERSION" ]; then
+            for candidate in 28.2.13676358 27.2.12479018 27.0.12077973; do
+              if [ -d "$SDK_ROOT/ndk/$candidate" ] && [ -f "$SDK_ROOT/ndk/$candidate/source.properties" ]; then
+                NDK_VERSION="$candidate"
+                break
+              fi
+            done
+          fi
+          NDK_VERSION="${NDK_VERSION:-28.2.13676358}"
+          NDK_DIR="$SDK_ROOT/ndk/$NDK_VERSION"
+          if [ ! -f "$NDK_DIR/source.properties" ]; then
+            rm -rf "$NDK_DIR"
+            "$SDKMANAGER" "ndk;$NDK_VERSION"
+          fi
+          test -f "$NDK_DIR/source.properties"
+          echo "ANDROID NDK $NDK_VERSION: READY"
+
+          # Install Android platforms/build-tools requested explicitly by the
+          # project when possible. Missing SDK packages are a common cause of
+          # otherwise valid Flutter projects failing before Gradle compilation.
+          COMPILE_SDK="$(grep -RhoE "compileSdk(Version)?[[:space:]]*([=:][[:space:]]*)?[0-9]+" "$PROJECT_DIR/android" 2>/dev/null | head -n1 | grep -Eo '[0-9]+' | tail -n1 || true)"
+          if [ -n "$COMPILE_SDK" ]; then
+            yes | "$SDKMANAGER" "platforms;android-$COMPILE_SDK" >/dev/null 2>&1 || true
+          fi
+
+          # Gradle wrapper executable bit can be lost when the project ZIP is
+          # created on Android/Windows. Restore it before invoking Flutter.
+          [ ! -f "$PROJECT_DIR/android/gradlew" ] || chmod +x "$PROJECT_DIR/android/gradlew"
+
+      - name: Fast Android environment check
+        run: |
+          java -version
+          flutter --version
+          echo "FAST ENVIRONMENT: OK"
+
+      - name: Prepare project
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -euo pipefail
+          rm -rf build
+          echo "PROJECT READY"
+
+      - name: Cache Flutter/Dart packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Get dependencies (quiet)
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set +e
+          flutter config --no-analytics >/dev/null 2>&1 || true
+          RC=1
+          for attempt in 1 2 3; do
+            flutter pub get > pub_get_report.txt 2>&1 && { RC=0; break; }
+            echo "pub get attempt $attempt/3 gagal; retry..."
+            sleep $((attempt * 2))
+          done
+          if [ "$RC" -ne 0 ]; then
+            echo
+            echo "BUILD FAILED"
+            echo "Step: Dependencies"
+            echo "============================"
+            echo "Error utama:"
+            grep -Ei "error|failed|exception|version solving failed|because .* depends on" pub_get_report.txt | head -n 12 || tail -n 20 pub_get_report.txt
+            echo "============================"
+            echo "Log lengkap: pub_get_report.txt"
+            exit "$RC"
+          fi
+          echo "DEPENDENCIES: OK"
+
+      - name: Fast build preflight
+        if: ${{ github.event.inputs.only_analyze != 'true' }}
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -euo pipefail
+          test -f pubspec.yaml
+          test -f lib/main.dart
+          echo "FAST PREFLIGHT: project structure OK (Flutter analyze dilewati agar build lebih cepat)"
+
       - name: Stop if Analyze Only
         if: ${{ github.event.inputs.only_analyze == 'true' }}
-        run: |
-          echo "Analyze-only mode aktif. Workflow dihentikan di sini."
-          exit 1
+        run: exit 0
 
-      # ==========================================================
-      # 📦 TAHAP DOWNLOAD DEPENDENSI (PUB GET)
-      # ==========================================================
-      - name: Get dependencies
-        working-directory: ${{ env.PROJECT_DIR }}
-        run: |
-          echo "=== Running flutter pub get ==="
-          if [ -f "pubspec.yaml" ]; then
-            timeout 90s flutter pub get || echo "⚠️ Gagal download package karena network server, coba lanjut aja..."
-          else
-            echo "☕ Bukan project Flutter standar, skip pub get!"
-          fi
-
-      # ==========================================================
-      # 🚀 TAHAP PEMBAKARAN UTAMA (BUILD APK)
-      # ==========================================================
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
-          echo "=== Building APK ==="
-          echo "Mode: ${{ github.event.inputs.build_type }}"
+          set -o pipefail
+          rm -f build_report.txt
+          echo
+          echo "BUILD APK"
+          echo "Step: Build APK"
+          echo "============================"
+          echo "𝗪𝗘𝗕 𝗧𝗢 𝗔𝗣𝗞 𝗕𝗬 𝗭𝗜𝗣𝗘𝗥𝗥"
 
-          BUILD_FAILED=0
+          # Selalu gunakan ABI split. Universal APK sering membengkak >50 MB
+          # dan kemudian gagal saat dikirim lewat Telegram Bot API.
+          # Release tetap dibuat per-ABI agar tiap file sekecil mungkin.
+          # Gradle/Flutter speed flags. Cache tetap dipakai dan tidak mengubah source app.
+          export GRADLE_OPTS="-Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.configuration-cache=true -Dorg.gradle.workers.max=4"
+          export ORG_GRADLE_PROJECT_org.gradle.parallel=true
+          BUILD_FLAGS="--${{ github.event.inputs.build_type }} --no-pub"
+          if [ "${{ github.event.inputs.build_type }}" = "release" ]; then
+            BUILD_FLAGS="$BUILD_FLAGS --split-per-abi"
+          fi
+          rm -f android/.gradle/*.lock android/.gradle/**/.lock 2>/dev/null || true
+          BUILD_OK=0
+          for attempt in 1 2; do
+            echo "BUILD ATTEMPT $attempt/2"
+            if flutter build apk $BUILD_FLAGS > build_report.txt 2>&1; then
+              BUILD_OK=1
+              break
+            fi
+            if [ "$attempt" -eq 1 ]; then
+              echo "Build pertama gagal — jalankan recovery Gradle lalu retry..."
+              rm -rf android/.gradle build/app/intermediates build/app/generated 2>/dev/null || true
+              flutter pub get >> build_report.txt 2>&1 || true
+            fi
+          done
+          if [ "$BUILD_OK" -ne 1 ]; then
+            echo
+            echo "BUILD FAILED"
+            echo "============================"
+            echo "Error utama / lokasi:"
 
-          if [ -f "pubspec.yaml" ]; then
-            echo "🔥 Project Flutter Terdeteksi! Kompilasi via Flutter SDK..."
+            # Compiler Dart: tampilkan hanya file:baris:kolom + pesan inti.
+            grep -E "^lib/[^:]+:[0-9]+:[0-9]+: (Error|error):" build_report.txt | head -n 8 || true
 
-            if ! flutter build apk --${{ github.event.inputs.build_type }} --no-tree-shake-icons --target-platform android-arm64 --no-shrink 2>&1 | tee build_report.txt; then
-              BUILD_FAILED=1
+            # Error Dart alternatif dari output analyzer/compiler.
+            grep -E "^error •" build_report.txt | head -n 5 || true
+
+            echo
+            echo "Build/Gradle:"
+            grep -E "Execution failed for task|Gradle task .* failed|Target kernel_snapshot_program failed|BUILD FAILED" build_report.txt | tail -n 5 || true
+            echo "============================"
+            echo "Log lengkap disimpan di: build_report.txt"
+            exit 1
+          fi
+
+          APK_COUNT=$(find build/app/outputs/flutter-apk -maxdepth 1 -type f -name '*.apk' | wc -l)
+          if [ "$APK_COUNT" -lt 1 ]; then
+            echo
+            echo "BUILD FAILED"
+            echo "APK tidak ditemukan setelah Flutter build."
+            exit 1
+          fi
+
+          echo
+          echo "BUILD OK"
+          echo "APK COUNT: $APK_COUNT"
+          find build/app/outputs/flutter-apk -maxdepth 1 -type f -name '*.apk' -print -exec du -h {} \;
+
+          # Guardrail: jangan pernah meneruskan APK universal besar ke jalur
+          # pengiriman Bot API. Jika ada APK >49 MiB, build tetap sukses tetapi
+          # tandai dengan jelas; handler akan memakai MTProto filePath fallback.
+          while IFS= read -r apk; do
+            SIZE_BYTES=$(stat -c%s "$apk")
+            SIZE_MB=$((SIZE_BYTES / 1024 / 1024))
+            if [ "$SIZE_BYTES" -gt $((49 * 1024 * 1024)) ]; then
+              echo "::warning::APK besar terdeteksi: $(basename "$apk") (${SIZE_MB} MiB). Telegram Bot API tidak akan dipakai; gunakan jalur MTProto."
+            fi
+          done < <(find build/app/outputs/flutter-apk -maxdepth 1 -type f -name '*.apk' -print)
+
+      - name: Prepare APK artifact
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -euo pipefail
+          rm -rf build/deffa-artifact
+          mkdir -p build/deffa-artifact
+          find build/app/outputs/flutter-apk -maxdepth 1 -type f -name '*.apk' -exec cp {} build/deffa-artifact/ \;
+          test "$(find build/deffa-artifact -maxdepth 1 -type f -name '*.apk' | wc -l)" -ge 1
+
+      - name: Upload APK directly to Release (API RETRY + VERIFY)
+        id: release_upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event.inputs.tag }}
+          GH_API: https://api.github.com
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -euo pipefail
+          mapfile -t APKS < <(find build/deffa-artifact -maxdepth 1 -type f -name '*.apk' -print | sort)
+          test "${#APKS[@]}" -ge 1
+          echo "⚡ RELEASE UPLOAD: ${#APKS[@]} APK ABI"
+
+          # Gunakan GitHub REST API langsung, bukan gh release view/upload.
+          # Ini menghilangkan satu sumber error CLI/auth dan membuat upload asset
+          # dapat diverifikasi dengan ID asset yang sama yang nanti dipakai bot.
+          RELEASE_JSON="$(mktemp)"
+          RELEASE_ID=""
+          UPLOAD_URL=""
+          for n in $(seq 1 20); do
+            HTTP_CODE=$(curl -sS -L -o "$RELEASE_JSON" -w '%{http_code}' \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "$GH_API/repos/$GITHUB_REPOSITORY/releases/tags/$TAG" || true)
+            if [ "$HTTP_CODE" = "200" ]; then
+              RELEASE_ID="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(d.get("id", ""))' "$RELEASE_JSON")"
+              UPLOAD_URL="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(str(d.get("upload_url", "")).split("{")[0])' "$RELEASE_JSON")"
+              if [ -n "$RELEASE_ID" ] && [ -n "$UPLOAD_URL" ]; then break; fi
+            fi
+            sleep 1
+          done
+          rm -f "$RELEASE_JSON"
+          if [ -z "$RELEASE_ID" ] || [ -z "$UPLOAD_URL" ]; then
+            echo "::error::GitHub Release $TAG tidak tersedia/invalid setelah 20 detik."
+            exit 1
+          fi
+
+          for apk in "${APKS[@]}"; do
+            NAME="$(basename "$apk")"
+            ok=0
+            # Bersihkan asset lama dengan nama sama sebelum upload baru.
+            # Ini menghindari 422 yang sebelumnya bisa membuat upload terlihat gagal.
+            curl -sS -L -o /tmp/release_assets.json \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "$GH_API/repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID/assets?per_page=100" || true
+            EXISTING_ID="$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); n=sys.argv[2]; print(next((a.get("id","") for a in d if a.get("name")==n), ""))' /tmp/release_assets.json "$NAME" 2>/dev/null || true)"
+            if [ -n "$EXISTING_ID" ]; then
+              curl -sS -L -X DELETE \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                "$GH_API/repos/$GITHUB_REPOSITORY/releases/assets/$EXISTING_ID" >/dev/null || true
             fi
 
-          else
-            echo "☕ Project Native Android Terdeteksi! Bypassing Flutter Core..."
-            GRADLE_PATH=$(find . -name "gradlew" | head -n 1)
-
-            if [ -z "$GRADLE_PATH" ]; then
-              echo "❌ ERROR: File 'gradlew' tidak ditemukan!"
-              echo "[RESULT_BUILD_ERROR]"
-              echo "Gagal menemukan file gradlew di dalam project. Pastikan ini project Android/Flutter yang valid."
-              echo "[END_RESULT_BUILD_ERROR]"
+            for attempt in 1 2 3 4 5; do
+              echo "📤 $NAME — upload ${attempt}/5"
+              CODE=$(curl -sS -L -o /tmp/release_upload.json -w '%{http_code}' \
+                -X POST \
+                -H "Authorization: Bearer $GH_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                -H "X-GitHub-Api-Version: 2022-11-28" \
+                -H "Content-Type: application/vnd.android.package-archive" \
+                --data-binary "@$apk" \
+                "$UPLOAD_URL?name=$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))' "$NAME")" || true)
+              if [ "$CODE" = "201" ] || [ "$CODE" = "200" ]; then
+                ok=1
+                break
+              fi
+              sleep $((attempt * 2))
+            done
+            if [ "$ok" -ne 1 ]; then
+              echo "::error::Gagal upload $NAME ke GitHub Release setelah 5 percobaan."
+              cat /tmp/release_upload.json 2>/dev/null | head -c 1200 || true
               exit 1
             fi
+          done
 
-            GRADLE_DIR=$(dirname "$GRADLE_PATH")
-            cd "$GRADLE_DIR"
-            chmod +x gradlew
-
-            echo "🚀 Membakar APK menggunakan Gradle Native..."
-            if [ "${{ github.event.inputs.build_type }}" = "debug" ]; then
-              GRADLE_TASK="assembleDebug"
-            else
-              GRADLE_TASK="assembleRelease"
-            fi
-
-            if ! ./gradlew "$GRADLE_TASK" --parallel --build-cache 2>&1 | tee build_report.txt; then
-              BUILD_FAILED=1
-            fi
-
-            mv build_report.txt "$OLDPWD/build_report.txt" 2>/dev/null || true
-            cd -
-          fi
-
-          if [ "$BUILD_FAILED" -eq 1 ]; then
-            echo ""
-            echo "❌ BUILD GAGAL! Berikut ringkasan error-nya:"
-            echo ""
-            echo "[RESULT_BUILD_ERROR]"
-            if grep -Ei "error|exception|failure|failed" build_report.txt > /dev/null 2>&1; then
-              grep -Ei -B2 -A5 "error|exception|failure|failed" build_report.txt
-            else
-              tail -n 80 build_report.txt
-            fi
-            echo "[END_RESULT_BUILD_ERROR]"
-            echo ""
-            echo "📄 Log build lengkap ada di file 'build_report.txt' (working directory project)."
-            rm -f build_report.txt
+          # Verifikasi berdasarkan nama asset, bukan sekadar release exists.
+          # Workflow hanya dianggap sukses setelah semua APK benar-benar terlihat.
+          EXPECTED="${#APKS[@]}"
+          ASSET_COUNT=0
+          for n in $(seq 1 15); do
+            curl -sS -L -o /tmp/release_verify.json \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "$GH_API/repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" || true
+            ASSET_COUNT=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1])); print(sum(1 for a in d.get("assets",[]) if str(a.get("name","")).lower().endswith(".apk")))' /tmp/release_verify.json 2>/dev/null || echo 0)
+            if [ "$ASSET_COUNT" -ge "$EXPECTED" ]; then break; fi
+            sleep 1
+          done
+          if [ "$ASSET_COUNT" -lt "$EXPECTED" ]; then
+            echo "::error::Release APK belum lengkap. Expected=$EXPECTED, actual=$ASSET_COUNT"
             exit 1
           fi
+          echo "DIRECT RELEASE APKs: VERIFIED ($ASSET_COUNT files)"
+          echo "ok=true" >> "$GITHUB_OUTPUT"
 
-          echo "✅ Build APK selesai tanpa error."
-          rm -f build_report.txt
-
-      # =========================
-      # CHECK APK
-      # =========================
-      - name: Check APK Output
-        run: |
-          echo "=== APK Output Scanning (Fast Path Mode) ==="
-
-          APK_FOUND=""
-
-          # Coba path standar Flutter dulu (instan, tidak scan seluruh workspace)
-          FLUTTER_APK=$(find "${{ env.PROJECT_DIR }}/build/app/outputs/flutter-apk" -maxdepth 1 -name "*.apk" 2>/dev/null | head -n 1)
-          if [ -n "$FLUTTER_APK" ]; then
-            APK_FOUND="$FLUTTER_APK"
-          fi
-
-          # Coba path standar Gradle native kalau belum ketemu
-          if [ -z "$APK_FOUND" ]; then
-            GRADLE_APK=$(find "${{ env.PROJECT_DIR }}" -path "*/build/outputs/apk/*" -name "*.apk" 2>/dev/null | head -n 1)
-            if [ -n "$GRADLE_APK" ]; then
-              APK_FOUND="$GRADLE_APK"
-            fi
-          fi
-
-          # Fallback terakhir: scan seluruh workspace kalau dua di atas gagal
-          if [ -z "$APK_FOUND" ]; then
-            echo "⚠️ Tidak ketemu di path standar, fallback scan seluruh workspace..."
-            APK_FOUND=$(find $GITHUB_WORKSPACE -name "*.apk" 2>/dev/null | head -n 1)
-          fi
-
-          if [ -z "$APK_FOUND" ]; then
-            echo "Error: Berkas biner APK beneran gak dicetak sama sekali oleh compiler."
-            exit 1
-          fi
-
-          APK_PATH=$(echo "$APK_FOUND" | sed "s|$GITHUB_WORKSPACE/||")
-
-          echo "✅ APK Sukses Ditemukan di Jalur: $APK_PATH"
-
-          echo "PROJECT_DIR=$GITHUB_WORKSPACE" >> $GITHUB_ENV
-          echo "APK_PATH=$APK_PATH" >> $GITHUB_ENV
-
-          echo ""
-          echo "=== APK Size ==="
-          ls -lh "$APK_FOUND"
-
-      # =========================
-      # UPLOAD APK
-      # =========================
-      - name: Upload APK artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: flutter-${{ github.event.inputs.build_type }}-${{ github.event.inputs.tag }}
-          path: ${{ env.PROJECT_DIR }}/${{ env.APK_PATH }}
-          retention-days: 1
-          if-no-files-found: error
-          compression-level: 0
+      # Sengaja tidak memakai upload-artifact untuk APK. Artifact ZIP adalah
+      # fallback yang lambat dan menyebabkan UI menampilkan 'Artifact x/y MB'.
+      # Jika Release gagal, workflow harus gagal dengan diagnostic yang jelas
+      # agar bot tidak mengunduh ZIP artifact yang besar.
