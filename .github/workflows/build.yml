@@ -32,17 +32,9 @@ jobs:
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
       # Percepat build Gradle: daemon off (single run), parallel on, build cache on
-      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.configureondemand=true -Dorg.gradle.jvmargs=-Xmx3g"
+      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4 -Dorg.gradle.caching=true -Dorg.gradle.configureondemand=true -Dorg.gradle.jvmargs=-Xmx3g"
 
     steps:
-
-      # =========================
-      # NODE.JS
-      # =========================
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
 
       # =========================
       # DOWNLOAD ZIP
@@ -134,6 +126,48 @@ jobs:
           cache: true
 
       # ==========================================================
+      # ⚡ CACHE GRADLE — hemat waktu download dependency Gradle
+      # Cache di-key dari isi file *.gradle & gradle-wrapper.properties
+      # milik project yang baru diextract, jadi tetap valid walau
+      # nama folder project selalu berubah-ubah.
+      # ==========================================================
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      # ==========================================================
+      # ⚡ CACHE PUB — hemat waktu `flutter pub get`
+      # ==========================================================
+      - name: Cache Pub packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      # ==========================================================
+      # ⚡ CACHE INCREMENTAL BUILD — hemat waktu kalau tag yang sama
+      # di-run ulang (misal abis fix kecil). Kalau tidak ada cache
+      # lama, step ini simpel dilewati (tidak fatal).
+      # ==========================================================
+      - name: Cache Flutter incremental build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PROJECT_DIR }}/.dart_tool
+            ${{ env.PROJECT_DIR }}/build
+          key: ${{ runner.os }}-flutterbuild-${{ github.event.inputs.tag }}-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-flutterbuild-${{ github.event.inputs.tag }}-
+
+      # ==========================================================
       # 🔍 TAHAP ANALYZE — STEP 1: Jalankan & cetak hasil
       # (SKIP total kalau only_analyze=false, biar build normal
       #  langsung tancap ke tahap build tanpa buang waktu analyze)
@@ -185,6 +219,36 @@ jobs:
           fi
 
       # ==========================================================
+      # 📦 NYALAKAN R8/MINIFY & SHRINK RESOURCES — APK LEBIH KECIL
+      # Hanya membalik nilai "false" -> "true" yang SUDAH ADA di
+      # file build.gradle project. Kalau baris minify tidak ada
+      # sama sekali di file, tidak disentuh (menghindari edit
+      # struktur file yang bisa bikin gradle error).
+      # Efek samping: APK jauh lebih kecil, upload jadi lebih
+      # cepat karena file yang diupload lebih ringan.
+      # ==========================================================
+      - name: Size patch - enable R8 minify & shrink
+        if: ${{ github.event.inputs.build_type == 'release' }}
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          echo "=== Mencari file build.gradle untuk diaktifkan minify-nya ==="
+          GRADLE_FILES=$(grep -rlE "minifyEnabled|isMinifyEnabled" . --include="build.gradle*" 2>/dev/null || true)
+
+          if [ -z "$GRADLE_FILES" ]; then
+            echo "⚠️ Tidak ada baris minify di build.gradle, skip patch (project pakai default apa adanya)."
+          else
+            for f in $GRADLE_FILES; do
+              echo "🚀 Patch: $f"
+              sed -i \
+                -e 's/minifyEnabled false/minifyEnabled true/g' \
+                -e 's/isMinifyEnabled = false/isMinifyEnabled = true/g' \
+                -e 's/shrinkResources false/shrinkResources true/g' \
+                -e 's/isShrinkResources = false/isShrinkResources = true/g' \
+                "$f" || echo "⚠️ Gagal patch $f, dilewati (tidak fatal, build tetap lanjut)."
+            done
+          fi
+
+      # ==========================================================
       # 🚀 TAHAP PEMBAKARAN UTAMA (BUILD APK)
       # ==========================================================
       - name: Build APK
@@ -198,7 +262,16 @@ jobs:
           if [ -f "pubspec.yaml" ]; then
             echo "🔥 Project Flutter Terdeteksi! Kompilasi via Flutter SDK..."
 
-            if ! flutter build apk --${{ github.event.inputs.build_type }} --no-tree-shake-icons --target-platform android-arm64 --no-shrink 2>&1 | tee build_report.txt; then
+            # --no-pub: pub get sudah dijalankan manual di step sebelumnya,
+            # jadi build tidak perlu cek ulang dependency (hemat waktu).
+            # --no-tree-shake-icons TETAP dipertahankan (bukan dihapus):
+            # menghapusnya bisa memicu error build "Icon tree-shaking failed"
+            # pada project yang generate IconData secara dinamis — risiko
+            # error ini tidak sepadan dengan penghematan ukuran yang kecil.
+            # Flag --no-shrink DIHAPUS supaya shrinkResources dari
+            # build.gradle (sudah diaktifkan step sebelumnya) benar-benar
+            # dieksekusi, ini yang bikin APK jauh lebih kecil.
+            if ! flutter build apk --${{ github.event.inputs.build_type }} --no-tree-shake-icons --target-platform android-arm64 --no-pub 2>&1 | tee build_report.txt; then
               BUILD_FAILED=1
             fi
 
