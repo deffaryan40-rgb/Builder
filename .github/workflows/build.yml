@@ -154,6 +154,24 @@ jobs:
           flutter --version
           echo "FAST ENVIRONMENT: OK"
 
+      - name: Inspect Android/Gradle compatibility
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -euo pipefail
+          echo "=== Flutter ==="
+          flutter --version | head -n 3
+          echo "=== Java ==="
+          java -version 2>&1 | head -n 3
+          echo "=== Gradle wrapper ==="
+          if [ -f android/gradle/wrapper/gradle-wrapper.properties ]; then
+            grep -E "^distributionUrl=" android/gradle/wrapper/gradle-wrapper.properties || true
+          fi
+          echo "=== Android plugin/Kotlin hints ==="
+          grep -RhoE "com\.android\.tools\.build:gradle:[0-9.]+|kotlin[^:]*version[ =]+['"][0-9.]+['"]|ext\.kotlin_version[ =]+['"][0-9.]+['"]" android 2>/dev/null | head -n 20 || true
+          echo "=== SDK/NDK ==="
+          grep -RhoE "compileSdk(Version)?[ =:]+[0-9]+|targetSdk(Version)?[ =:]+[0-9]+|minSdk(Version)?[ =:]+[0-9]+|ndkVersion[ =:]+['"][0-9.]+['"]" android 2>/dev/null | head -n 30 || true
+          echo "COMPATIBILITY INSPECTION: OK"
+
       - name: Prepare project
         working-directory: ${{ env.PROJECT_DIR }}
         run: |
@@ -231,7 +249,10 @@ jobs:
           # dan kemudian gagal saat dikirim lewat Telegram Bot API.
           # Release tetap dibuat per-ABI agar tiap file sekecil mungkin.
           # Gradle/Flutter speed flags. Cache tetap dipakai dan tidak mengubah source app.
-          export GRADLE_OPTS="-Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.configuration-cache=true -Dorg.gradle.workers.max=4"
+          # Configuration cache sengaja TIDAK dipaksa. Banyak plugin Flutter/Gradle
+          # pihak ketiga belum configuration-cache safe dan ini bisa membuat build
+          # gagal padahal source project valid. Cache Gradle biasa tetap aktif.
+          export GRADLE_OPTS="-Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.workers.max=4 -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8"
           export ORG_GRADLE_PROJECT_org.gradle.parallel=true
           BUILD_FLAGS="--${{ github.event.inputs.build_type }} --no-pub"
           if [ "${{ github.event.inputs.build_type }}" = "release" ]; then
@@ -239,33 +260,62 @@ jobs:
           fi
           rm -f android/.gradle/*.lock android/.gradle/**/.lock 2>/dev/null || true
           BUILD_OK=0
-          for attempt in 1 2; do
-            echo "BUILD ATTEMPT $attempt/2"
-            if flutter build apk $BUILD_FLAGS > build_report.txt 2>&1; then
+          : > build_report.txt
+
+          run_build() {
+            local label="$1"
+            shift
+            local log="build_${label}.txt"
+            echo "============================" | tee -a build_report.txt
+            echo "BUILD ATTEMPT: $label" | tee -a build_report.txt
+            echo "COMMAND: flutter build apk $*" | tee -a build_report.txt
+            echo "============================" | tee -a build_report.txt
+            if flutter build apk "$@" > "$log" 2>&1; then
+              cat "$log" >> build_report.txt
+              return 0
+            fi
+            cat "$log" >> build_report.txt
+            return 1
+          }
+
+          # Attempt 1: jalur normal dan tercepat.
+          if run_build "01_split" $BUILD_FLAGS; then
+            BUILD_OK=1
+          else
+            echo "Build split gagal — recovery Gradle/plugin state..."
+            ./android/gradlew --stop >/dev/null 2>&1 || true
+            rm -rf android/.gradle build/app/intermediates build/app/generated 2>/dev/null || true
+            flutter clean >> build_report.txt 2>&1 || true
+            flutter pub get >> build_report.txt 2>&1 || true
+
+            # Attempt 2: ulangi tanpa configuration/cache state yang mungkin rusak.
+            # Tidak mengubah source project.
+            if run_build "02_split_recovery" $BUILD_FLAGS; then
               BUILD_OK=1
-              break
+            else
+              # Attempt 3: fallback universal APK. Ini khusus untuk project/plugin
+              # yang memiliki custom ABI filters atau konflik split-per-abi.
+              echo "Split APK masih gagal — mencoba universal release fallback..." | tee -a build_report.txt
+              if flutter build apk --release --no-pub > build_03_universal.txt 2>&1; then
+                cat build_03_universal.txt >> build_report.txt
+                BUILD_OK=1
+              else
+                cat build_03_universal.txt >> build_report.txt
+              fi
             fi
-            if [ "$attempt" -eq 1 ]; then
-              echo "Build pertama gagal — jalankan recovery Gradle lalu retry..."
-              rm -rf android/.gradle build/app/intermediates build/app/generated 2>/dev/null || true
-              flutter pub get >> build_report.txt 2>&1 || true
-            fi
-          done
+          fi
           if [ "$BUILD_OK" -ne 1 ]; then
             echo
             echo "BUILD FAILED"
             echo "============================"
             echo "Error utama / lokasi:"
 
-            # Compiler Dart: tampilkan hanya file:baris:kolom + pesan inti.
-            grep -E "^lib/[^:]+:[0-9]+:[0-9]+: (Error|error):" build_report.txt | head -n 8 || true
-
-            # Error Dart alternatif dari output analyzer/compiler.
-            grep -E "^error •" build_report.txt | head -n 5 || true
+            # Tampilkan error yang benar-benar menyebabkan compiler berhenti.
+            grep -Ei "(^lib/[^:]+:[0-9]+:[0-9]+: (Error|error):|^error •|Execution failed for task|Gradle task .* failed|Could not resolve|Could not find|requires a higher|version solving failed|The current Dart SDK version|NDK|namespace|compileSdk|minSdk|Kotlin|Java)" build_report.txt | tail -n 40 || true
 
             echo
-            echo "Build/Gradle:"
-            grep -E "Execution failed for task|Gradle task .* failed|Target kernel_snapshot_program failed|BUILD FAILED" build_report.txt | tail -n 5 || true
+            echo "Last 80 lines:"
+            tail -n 80 build_report.txt || true
             echo "============================"
             echo "Log lengkap disimpan di: build_report.txt"
             exit 1
