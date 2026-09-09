@@ -53,15 +53,26 @@ jobs:
           fi
           echo "INPUT OK: zip_url tersedia | tag=$TAG | build_type=$BUILD_TYPE"
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: "22"
-
       - name: Download ZIP project
         run: |
           set -euo pipefail
-          curl -fL --retry 4 --retry-all-errors -H "Authorization: Bearer ${{ github.token }}" -H "Accept: application/octet-stream" -H "User-Agent: DEFFA-BUILD" "${{ github.event.inputs.zip_url }}" -o project.zip
+          ZIP_URL="${{ github.event.inputs.zip_url }}"
+
+          # PENTING: jangan kirim GITHUB_TOKEN sebagai Authorization header ke
+          # host pihak ketiga. zip_url bisa berupa Google Drive, S3 presigned
+          # URL, dsb — banyak provider MENOLAK request yang membawa header
+          # Authorization asing (biasanya 400/403), sehingga download gagal
+          # padahal URL-nya valid. Token hanya dikirim jika target memang
+          # endpoint GitHub (release asset / API).
+          AUTH_ARGS=()
+          if [[ "$ZIP_URL" == https://api.github.com/* || "$ZIP_URL" == https://github.com/*/releases/download/* ]]; then
+            AUTH_ARGS=(-H "Authorization: Bearer ${{ github.token }}" -H "Accept: application/octet-stream")
+          fi
+
+          curl -fL --retry 4 --retry-all-errors \
+            "${AUTH_ARGS[@]}" \
+            -H "User-Agent: DEFFA-BUILD" \
+            "$ZIP_URL" -o project.zip
           test -s project.zip
           unzip -t project.zip >/dev/null
           ls -lh project.zip
@@ -167,9 +178,9 @@ jobs:
             grep -E "^distributionUrl=" android/gradle/wrapper/gradle-wrapper.properties || true
           fi
           echo "=== Android plugin/Kotlin hints ==="
-          grep -RhoE "com\.android\.tools\.build:gradle:[0-9.]+|kotlin[^:]*version[ =]+['"][0-9.]+['"]|ext\.kotlin_version[ =]+['"][0-9.]+['"]" android 2>/dev/null | head -n 20 || true
+          grep -RhoE "com\.android\.tools\.build:gradle:[0-9.]+|kotlin[^:]*version[[:space:]]*=[[:space:]]*[0-9.]+|ext\.kotlin_version[[:space:]]*=[[:space:]]*[0-9.]+" android 2>/dev/null | head -n 20 || true
           echo "=== SDK/NDK ==="
-          grep -RhoE "compileSdk(Version)?[ =:]+[0-9]+|targetSdk(Version)?[ =:]+[0-9]+|minSdk(Version)?[ =:]+[0-9]+|ndkVersion[ =:]+['"][0-9.]+['"]" android 2>/dev/null | head -n 30 || true
+          grep -RhoE "compileSdk(Version)?[[:space:]:=]+[0-9]+|targetSdk(Version)?[[:space:]:=]+[0-9]+|minSdk(Version)?[[:space:]:=]+[0-9]+|ndkVersion[[:space:]:=]+[0-9.]+" android 2>/dev/null | head -n 30 || true
           echo "COMPATIBILITY INSPECTION: OK"
 
       - name: Prepare project
