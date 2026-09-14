@@ -21,11 +21,6 @@ on:
         required: false
         default: "false"
 
-      shrink_code:
-        description: "Aktifkan code shrinking R8 buat APK lebih kecil (true/false). Hanya aktifkan kalau project sudah punya proguard-rules yang benar, kalau tidak bisa runtime crash."
-        required: false
-        default: "false"
-
 concurrency:
   group: build-flutter-apk-${{ github.event.inputs.tag }}
   cancel-in-progress: true
@@ -33,13 +28,12 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-      # Percepat build Gradle: daemon off (single run), parallel + configuration
-      # cache on, workers.max dipatok ke jumlah core runner (ubuntu-latest = 4 vCPU),
-      # heap dinaikkan ke 4g supaya project besar (sampai ~2GB source) nggak OOM
-      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.configuration-cache=true -Dorg.gradle.configureondemand=true -Dorg.gradle.workers.max=4 -Dorg.gradle.jvmargs=-Xmx4g"
+      # Percepat build Gradle: daemon off (single run), parallel on, build cache on,
+      # workers.max dipatok ke jumlah core runner (ubuntu-latest = 4 vCPU)
+      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.configureondemand=true -Dorg.gradle.workers.max=4 -Dorg.gradle.jvmargs=-Xmx3g"
 
     steps:
 
@@ -49,25 +43,27 @@ jobs:
       - name: Download ZIP project
         run: |
           echo "=== Downloading ZIP ==="
+          echo "URL: ${{ github.event.inputs.zip_url }}"
 
-          HTTP_CODE=$(curl -L --compressed \
+          curl -L --compressed \
             --retry 3 --retry-delay 5 --retry-connrefused \
             -H "Authorization: Bearer ${{ secrets.GH_TOKEN }}" \
             -H "Accept: application/octet-stream" \
             "${{ github.event.inputs.zip_url }}" \
             -o project.zip \
-            -w "%{http_code}")
+            -w "\n=== HTTP Status: %{http_code} ===\n=== Final URL: %{url_effective} ===\n"
 
-          SIZE=$(stat -c%s project.zip 2>/dev/null || echo 0)
+          echo ""
+          echo "=== File Info ==="
+          ls -lh project.zip
 
-          if [ "$HTTP_CODE" -ge 400 ] || [ "$SIZE" -eq 0 ]; then
-            echo "❌ ERROR: Download ZIP gagal"
-            echo "[BARIS ERROR] HTTP Status: $HTTP_CODE | Ukuran file: ${SIZE} bytes"
-            echo "[PENYEBAB] URL tidak bisa diakses, salah, expired, atau butuh auth yang gagal (cek zip_url & secrets.GH_TOKEN)."
-            exit 1
-          fi
+          echo ""
+          echo "=== File Type ==="
+          file project.zip
 
-          echo "✅ Download OK — HTTP $HTTP_CODE, ukuran $(ls -lh project.zip | awk '{print $5}')"
+          echo ""
+          echo "=== First Bytes ==="
+          xxd project.zip | head -2
 
       # =========================
       # EXTRACT ZIP
@@ -77,15 +73,25 @@ jobs:
           echo "=== Validating ZIP ==="
 
           if ! unzip -t project.zip > /dev/null 2>&1; then
-            FTYPE=$(file -b project.zip)
-            echo "❌ ERROR: File hasil download bukan ZIP yang valid"
-            echo "[BARIS ERROR] Tipe file terdeteksi: $FTYPE"
-            echo "[PENYEBAB] zip_url kemungkinan mengarah ke halaman HTML/error (bukan file ZIP langsung), atau file ZIP korup."
+            echo "❌ File bukan ZIP valid!"
+            echo ""
+            echo "=== Isi file ==="
+            cat project.zip
             exit 1
           fi
 
           echo "✅ ZIP valid"
+
+          echo ""
+          echo "=== Extracting ZIP ==="
           unzip -q project.zip -d project_raw
+
+          echo ""
+          echo "=== Isi folder project_raw ==="
+          find project_raw | head -50
+
+          echo ""
+          echo "=== Mengunci Project Dir (Manut Mode) ==="
 
           SUB_DIR_COUNT=$(find project_raw -maxdepth 1 -mindepth 1 -type d | wc -l)
           FILE_COUNT=$(find project_raw -maxdepth 1 -mindepth 1 -type f | wc -l)
@@ -96,14 +102,7 @@ jobs:
             PROJECT_DIR="project_raw"
           fi
 
-          if [ ! -f "$PROJECT_DIR/pubspec.yaml" ] && [ -z "$(find "$PROJECT_DIR" -maxdepth 2 -name gradlew 2>/dev/null)" ]; then
-            echo "❌ ERROR: Bukan project Flutter/Android yang valid"
-            echo "[BARIS ERROR] pubspec.yaml dan gradlew tidak ditemukan di: $PROJECT_DIR"
-            echo "[PENYEBAB] ZIP yang diupload bukan root project Flutter/Android, atau struktur foldernya salah."
-            exit 1
-          fi
-
-          echo "✅ Project root: $PROJECT_DIR"
+          echo "✅ Project root langsung dikunci di: $PROJECT_DIR"
           echo "PROJECT_DIR=$PROJECT_DIR" >> $GITHUB_ENV
 
       # =========================
@@ -221,46 +220,17 @@ jobs:
           echo "=== Building APK ==="
           echo "Mode: ${{ github.event.inputs.build_type }}"
 
-          # Ambil baris error asli (file:line kalau ada) + tebak penyebabnya.
-          # Singkat, tidak dump log mentah panjang-panjang.
-          print_error_summary() {
-            LOG="$1"
-            echo "[BARIS ERROR]"
-            grep -E -i \
-              "error:|error :|\.dart:[0-9]+:[0-9]+|\.kt:.*error|\.java:.*error|FAILURE:|Exception:|Could not find|Unresolved reference|Duplicate class|SDK location not found" \
-              "$LOG" | sort -u | head -n 15
-            echo ""
-            echo "[PENYEBAB]"
-            FOUND=0
-            grep -qi "Could not find"        "$LOG" && { echo "→ Dependency/package tidak ditemukan (cek nama & versi di pubspec.yaml / build.gradle)."; FOUND=1; }
-            grep -qi "SDK location not found" "$LOG" && { echo "→ Android SDK path tidak terdeteksi di runner."; FOUND=1; }
-            grep -qi "Unresolved reference"   "$LOG" && { echo "→ Ada kode yang mereferensikan sesuatu yang tidak ada / salah import."; FOUND=1; }
-            grep -qi "Duplicate class"        "$LOG" && { echo "→ Ada dependency yang bentrok/duplikat class."; FOUND=1; }
-            grep -qi "minSdkVersion"          "$LOG" && { echo "→ Kemungkinan konflik minSdkVersion antar plugin."; FOUND=1; }
-            grep -qi "compileSdk"             "$LOG" && { echo "→ compileSdkVersion project kemungkinan kurang tinggi untuk salah satu plugin."; FOUND=1; }
-            grep -qi "Execution failed for task" "$LOG" && { echo "→ $(grep -oE "Execution failed for task '[^']+'" "$LOG" | head -n1) gagal — lihat baris error di atas untuk detailnya."; FOUND=1; }
-            if [ "$FOUND" -eq 0 ]; then
-              echo "→ Lihat pesan pada [BARIS ERROR] di atas untuk detail spesifiknya."
-            fi
-          }
-
           BUILD_FAILED=0
 
           if [ -f "pubspec.yaml" ]; then
             echo "🔥 Project Flutter Terdeteksi! Kompilasi via Flutter SDK..."
-
-            SHRINK_FLAG="--no-shrink"
-            if [ "${{ github.event.inputs.shrink_code }}" = "true" ]; then
-              echo "⚙️ Code shrinking (R8) diaktifkan -> APK lebih kecil."
-              SHRINK_FLAG=""
-            fi
 
             if ! flutter build apk --${{ github.event.inputs.build_type }} \
               --no-tree-shake-icons \
               --no-pub \
               --split-per-abi \
               --target-platform android-arm64 \
-              $SHRINK_FLAG 2>&1 | tee build_report.txt; then
+              --no-shrink 2>&1 | tee build_report.txt; then
               BUILD_FAILED=1
             fi
 
@@ -269,10 +239,9 @@ jobs:
             GRADLE_PATH=$(find . -name "gradlew" | head -n 1)
 
             if [ -z "$GRADLE_PATH" ]; then
-              echo "❌ ERROR: File gradlew tidak ditemukan"
+              echo "❌ ERROR: File 'gradlew' tidak ditemukan!"
               echo "[RESULT_BUILD_ERROR]"
-              echo "[BARIS ERROR] Tidak ada file 'gradlew' di dalam project."
-              echo "[PENYEBAB] Project bukan struktur Android/Flutter yang valid, atau folder root ZIP salah."
+              echo "Gagal menemukan file gradlew di dalam project. Pastikan ini project Android/Flutter yang valid."
               echo "[END_RESULT_BUILD_ERROR]"
               exit 1
             fi
@@ -297,10 +266,18 @@ jobs:
           fi
 
           if [ "$BUILD_FAILED" -eq 1 ]; then
-            echo "❌ BUILD GAGAL"
+            echo ""
+            echo "❌ BUILD GAGAL! Berikut ringkasan error-nya:"
+            echo ""
             echo "[RESULT_BUILD_ERROR]"
-            print_error_summary build_report.txt
+            if grep -Ei "error|exception|failure|failed" build_report.txt > /dev/null 2>&1; then
+              grep -Ei -B2 -A5 "error|exception|failure|failed" build_report.txt
+            else
+              tail -n 80 build_report.txt
+            fi
             echo "[END_RESULT_BUILD_ERROR]"
+            echo ""
+            echo "📄 Log build lengkap ada di file 'build_report.txt' (working directory project)."
             rm -f build_report.txt
             exit 1
           fi
@@ -341,9 +318,7 @@ jobs:
           fi
 
           if [ -z "$APK_DIR" ]; then
-            echo "❌ ERROR: APK tidak ditemukan"
-            echo "[BARIS ERROR] Tidak ada file *.apk di seluruh workspace ($GITHUB_WORKSPACE)."
-            echo "[PENYEBAB] Build step melaporkan sukses tapi output APK tidak tersimpan di path default — kemungkinan flavor/productFlavor custom memindah output dir, atau task build yang jalan bukan assembleRelease/assembleDebug."
+            echo "Error: Berkas biner APK beneran gak dicetak sama sekali oleh compiler."
             exit 1
           fi
 
