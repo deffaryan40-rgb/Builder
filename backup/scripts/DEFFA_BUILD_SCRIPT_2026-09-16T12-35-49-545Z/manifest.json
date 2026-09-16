@@ -1,0 +1,331 @@
+{
+  "format": "deffa-script-backup-v2",
+  "fileName": "DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z.zip",
+  "size": 45751076,
+  "partSize": 716800,
+  "parts": 64,
+  "files": [
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0001.bin",
+      "size": 716800,
+      "sha": "ab0a12cd97a18affb229c9fe0e55123e787ca100"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0002.bin",
+      "size": 716800,
+      "sha": "2b0cfc173be9164561eefc721175c6cb7e995e25"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0003.bin",
+      "size": 716800,
+      "sha": "18ca7eba201584b23ae8a031d949077ceb8dd7de"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0004.bin",
+      "size": 716800,
+      "sha": "2a931ae9e6380fa140f6d89097eaaf4ddda57113"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0005.bin",
+      "size": 716800,
+      "sha": "926fa4562c685f0fdf12be9f7f37f61135ec916c"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0006.bin",
+      "size": 716800,
+      "sha": "ac6c679f5436961644d79394b07c76d155f79d1c"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0007.bin",
+      "size": 716800,
+      "sha": "1f251bcb97f295a842983dc8505ba6f56f4d4923"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0008.bin",
+      "size": 716800,
+      "sha": "5eb573ae9b5b19f40046a52c6607e9485e41c393"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0009.bin",
+      "size": 716800,
+      "sha": "92d1f92fa2a5d12545608f503e9b0ec39fd56415"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0010.bin",
+      "size": 716800,
+      "sha": "60f14159976c425a8c37c188be90811658fa5a80"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0011.bin",
+      "size": 716800,
+      "sha": "b69da532da6f16a54be0badafd15d44e23ae8bc0"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0012.bin",
+      "size": 716800,
+      "sha": "8b79c542235317d357aeed65d37e643104c82dcb"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0013.bin",
+      "size": 716800,
+      "sha": "ac19312330de58d3e7b9d07c24403220d7deff8f"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0014.bin",
+      "size": 716800,
+      "sha": "bf466995bbed4c366813bfdf0381abe0f869af4b"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0015.bin",
+      "size": 716800,
+      "sha": "c54de996aef3d73552bddd34ef7a4f32e17b59d3"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0016.bin",
+      "size": 716800,
+      "sha": "8bc1afbe701cbd330822eb3222968a64d4f0723e"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0017.bin",
+      "size": 716800,
+      "sha": "2b1f8b7ced20cce436af19db4155ecfdc7c5c1a0"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0018.bin",
+      "size": 716800,
+      "sha": "cc180e124a6337ee5da8b3f4a98ab7b31b8da87e"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0019.bin",
+      "size": 716800,
+      "sha": "47f05e1e401687a3d2375f0fc00a7984a74a7099"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0020.bin",
+      "size": 716800,
+      "sha": "11e3cfeb82a718b3748f9a3dad536d23c8fc5ede"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0021.bin",
+      "size": 716800,
+      "sha": "f794eee0fb49f5117c181ddfa88e4e54d7f2af98"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0022.bin",
+      "size": 716800,
+      "sha": "81693dac42f8a9c2ed240f68002784527a16ef96"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0023.bin",
+      "size": 716800,
+      "sha": "98c837d9dc671a9f6b2e794496559733a3f69f85"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0024.bin",
+      "size": 716800,
+      "sha": "1fee319956c07841f15b5badfd4e1d74f74f43b9"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0025.bin",
+      "size": 716800,
+      "sha": "55c6eefc58b22df2c7db2f416861b447ee9605c7"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0026.bin",
+      "size": 716800,
+      "sha": "0b1c42d1de6af3def35a12ed462ad762b87f23cb"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0027.bin",
+      "size": 716800,
+      "sha": "7740e2aa2b437ed86bc86e3e1d5ef3e5666a8da0"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0028.bin",
+      "size": 716800,
+      "sha": "48ab5bd503a19d7ad97094b8d631694786482fd1"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0029.bin",
+      "size": 716800,
+      "sha": "4845fe42194753560a58e8a8fab123921c64495d"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0030.bin",
+      "size": 716800,
+      "sha": "0f9bfcbcf20800c4ecc50aff6c162e8c394f4082"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0031.bin",
+      "size": 716800,
+      "sha": "3dd8d477de8efba5c27bd2fb1ac1919b4f9ab29b"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0032.bin",
+      "size": 716800,
+      "sha": "0ebaf90e3091e2a393098dd576042320e7a4aa85"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0033.bin",
+      "size": 716800,
+      "sha": "55c16b05c1892fc1336221c5bec7e08ac54dd3a2"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0034.bin",
+      "size": 716800,
+      "sha": "b2984a8d12b0963c949b6b68d767d5c44c7acdec"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0035.bin",
+      "size": 716800,
+      "sha": "28fb58c97c511e079dc4b28483663a6d7536e6e2"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0036.bin",
+      "size": 716800,
+      "sha": "3e1888b4584cf642b8f820d63cf47f2239ec5ad0"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0037.bin",
+      "size": 716800,
+      "sha": "bcf52086dca6070cda01fff5da3e08c6767f7b03"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0038.bin",
+      "size": 716800,
+      "sha": "4e2b536763a66798ffe5186bca3673a3caf26560"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0039.bin",
+      "size": 716800,
+      "sha": "26e37eb37966ee49da93ab8018ecb0fd28cd96d9"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0040.bin",
+      "size": 716800,
+      "sha": "dd750405671ddcca1b81867137f7e200ca751ac1"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0041.bin",
+      "size": 716800,
+      "sha": "5816de02c9b0c6671566a14015bf52e941434b16"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0042.bin",
+      "size": 716800,
+      "sha": "3d779c284ddb36aeda82246e21cf3466e559e5aa"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0043.bin",
+      "size": 716800,
+      "sha": "a6b36b168c51dcc100fb9fe7b92d68c6d686921f"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0044.bin",
+      "size": 716800,
+      "sha": "4c8e5df308df5cb0855331fa17642d3e1e51fd2e"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0045.bin",
+      "size": 716800,
+      "sha": "a76f6bd734d3a8f845b9ed20f7d20263854f02ed"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0046.bin",
+      "size": 716800,
+      "sha": "f2353a92795871c2d90c998d1085027f0cc4a244"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0047.bin",
+      "size": 716800,
+      "sha": "4c7b5e29f6db6f32f8be63a690709b7b11d5e0d7"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0048.bin",
+      "size": 716800,
+      "sha": "6f57c2bbc66d9aada9a97696699a19d0ffae76d9"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0049.bin",
+      "size": 716800,
+      "sha": "5d4d73c44f5caaf7c2886c5e8700940d664e3f7a"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0050.bin",
+      "size": 716800,
+      "sha": "5879f2ce88b3132e920f09d50dc10b7c81e78ce4"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0051.bin",
+      "size": 716800,
+      "sha": "5ef095426d409de2e171200b94b39062b7287658"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0052.bin",
+      "size": 716800,
+      "sha": "555f5b9c14c942c215f1d1a79dee0ac766b790f4"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0053.bin",
+      "size": 716800,
+      "sha": "689f5fd34b51bc61f1f92e71973032268383f238"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0054.bin",
+      "size": 716800,
+      "sha": "9c8aa2aeec9ba75b4a11cae11699b9f38c4db06a"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0055.bin",
+      "size": 716800,
+      "sha": "c84f9421c009488be5b031b64123276b4f6d412e"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0056.bin",
+      "size": 716800,
+      "sha": "0ebb01725d8f6a219a21f1b627c613b6a901aa7b"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0057.bin",
+      "size": 716800,
+      "sha": "558145a8c9914911c8bd2f0545f8997e46c2f0dd"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0058.bin",
+      "size": 716800,
+      "sha": "a19e6595a49b350bacf761893326ba591b404783"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0059.bin",
+      "size": 716800,
+      "sha": "d70a8cc3d3191abfa46e305d8e335417ff973efa"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0060.bin",
+      "size": 716800,
+      "sha": "9fe2c88a48e42692ae9f4315c955d06019522dae"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0061.bin",
+      "size": 716800,
+      "sha": "2bc0869e0a2cee105c3f6bc545e1bd4ae2f3633d"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0062.bin",
+      "size": 716800,
+      "sha": "fa2299a146a0ef6a29521613c9f17fb31f010e4e"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0063.bin",
+      "size": 716800,
+      "sha": "529e00bf008d5e5f4f8489fc78e06312b6a600a1"
+    },
+    {
+      "file": "backup/scripts/DEFFA_BUILD_SCRIPT_2026-09-16T12-35-49-545Z/part-0064.bin",
+      "size": 592676,
+      "sha": "0ca5b6c04a9c03539df70bc0defc3c97223c53f5"
+    }
+  ],
+  "createdAt": "2026-09-16T12:38:56.966Z",
+  "note": "Concatenate parts in numeric order to reconstruct the original ZIP."
+}
