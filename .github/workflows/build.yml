@@ -207,12 +207,35 @@ jobs:
 
       # ==========================================================
       # 🚀 TAHAP PEMBAKARAN UTAMA (BUILD APK)
-      # Hanya target arm64-v8a -> paling cepat dikompilasi & APK
-      # paling kecil (covers hampir semua HP modern 2018+).
-      # --no-shrink tetap dipertahankan supaya tidak gagal karena
-      # aturan R8/Proguard yang belum ada di project.
-      # Kalau perlu dukung HP 32-bit lama, tambahkan
-      # ",android-arm" di --target-platform (build jadi lebih lama).
+      #
+      # PERUBAHAN vs versi sebelumnya:
+      # - target-platform sekarang HANYA android-arm (32-bit/armeabi-v7a)
+      #   => cuma compile 1 arsitektur, jadi build PALING CEPAT dan
+      #   APK PALING KECIL dari semua opsi. APK ini tetap bisa
+      #   diinstall & jalan normal di HP 64-bit (backward compatible),
+      #   jadi tidak ada device modern yang ketinggalan.
+      #   Catatan: kalau nanti APK ini di-upload ke Google Play Store,
+      #   Play mewajibkan sertakan binary 64-bit juga (APK 32-bit-only
+      #   ditolak Play). Untuk sideload/manual seperti sekarang, aman.
+      # - --no-shrink DIHAPUS untuk build release => R8/Proguard
+      #   shrinking aktif (menghapus kode Java/Kotlin yang tak
+      #   terpakai) supaya ukuran makin kecil. Kalau project belum
+      #   punya proguard-rules custom, Flutter tetap pakai rules
+      #   default bawaan template Flutter/Android, jadi umumnya aman.
+      #   Kalau ternyata build gagal karena shrinking, tinggal
+      #   kembalikan --no-shrink di baris release di bawah.
+      # - --no-tree-shake-icons DIHAPUS => icon font (mis. Material
+      #   Icons) di-tree-shake, cuma glyph yang dipakai yang ikut
+      #   dibundling. Ini otomatis hanya berlaku untuk build release.
+      # - --obfuscate --split-debug-info ditambahkan KHUSUS release
+      #   => kode Dart AOT dipangkas & di-obfuscate, ukuran lib
+      #   native (libapp.so) mengecil lebih jauh.
+      #
+      # CATATAN KECEPATAN: build 2 arsitektur otomatis makan waktu
+      # sedikit lebih lama daripada 1 arsitektur, dan shrinking pun
+      # menambah beberapa detik/menit dibanding --no-shrink. Ini
+      # trade-off yang tidak terhindarkan antara "ukuran sekecil
+      # mungkin" vs "waktu build tercepat".
       # ==========================================================
       - name: Build APK
         working-directory: ${{ env.PROJECT_DIR }}
@@ -225,13 +248,20 @@ jobs:
           if [ -f "pubspec.yaml" ]; then
             echo "🔥 Project Flutter Terdeteksi! Kompilasi via Flutter SDK..."
 
-            if ! flutter build apk --${{ github.event.inputs.build_type }} \
-              --no-tree-shake-icons \
-              --no-pub \
-              --split-per-abi \
-              --target-platform android-arm64 \
-              --no-shrink 2>&1 | tee build_report.txt; then
-              BUILD_FAILED=1
+            if [ "${{ github.event.inputs.build_type }}" = "release" ]; then
+              if ! flutter build apk --release \
+                --no-pub \
+                --target-platform android-arm \
+                --obfuscate \
+                --split-debug-info=build/debug-info 2>&1 | tee build_report.txt; then
+                BUILD_FAILED=1
+              fi
+            else
+              if ! flutter build apk --debug \
+                --no-pub \
+                --target-platform android-arm 2>&1 | tee build_report.txt; then
+                BUILD_FAILED=1
+              fi
             fi
 
           else
