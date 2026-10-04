@@ -1,0 +1,301 @@
+{
+  "format": "yanxsly-script-backup-v2",
+  "fileName": "YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z.zip",
+  "size": 40955077,
+  "partSize": 716800,
+  "parts": 58,
+  "files": [
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0001.bin",
+      "size": 716800,
+      "sha": "d4e76db3564fe71d4eb16b187c40c54fa60cd7e2"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0002.bin",
+      "size": 716800,
+      "sha": "149e83644672c7efc1ace58b87b4972d11d34d31"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0003.bin",
+      "size": 716800,
+      "sha": "634a2ca26a3cd7d8fef1805eb895dd11ce4038d5"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0004.bin",
+      "size": 716800,
+      "sha": "979c692ea72cca9fd338da417c3636d6418a7d30"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0005.bin",
+      "size": 716800,
+      "sha": "e9fbb3deac14c60765e7894cadd52fed4b81132b"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0006.bin",
+      "size": 716800,
+      "sha": "157a9236ce09d51112de59f3dde48c8e70a740c9"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0007.bin",
+      "size": 716800,
+      "sha": "511d84bdb309699dead05e4b6bb7385447e6de09"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0008.bin",
+      "size": 716800,
+      "sha": "11989c60eab218e52e9320919be942722d1dd492"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0009.bin",
+      "size": 716800,
+      "sha": "fd4e601829b81b750ba57d52311ddaad9574b2bf"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0010.bin",
+      "size": 716800,
+      "sha": "b0b4205552f8eef33f196a77839dc22449b559c9"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0011.bin",
+      "size": 716800,
+      "sha": "1faa11632d6be4e98df019685b14aca367890965"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0012.bin",
+      "size": 716800,
+      "sha": "64e5b8c398efd5a37f95813fe553302c9c6d9b1a"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0013.bin",
+      "size": 716800,
+      "sha": "6ed1030b167e4889cbf51f7da4c258d11f492020"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0014.bin",
+      "size": 716800,
+      "sha": "690ea2b7b8efe20ba616d89524a7d0ec94691f1c"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0015.bin",
+      "size": 716800,
+      "sha": "291b3a82e07d8fe8d2cd5c789c970ad7e3ba35fd"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0016.bin",
+      "size": 716800,
+      "sha": "93a4e9c61e84c306b932f98a86bc60118e334a66"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0017.bin",
+      "size": 716800,
+      "sha": "712edd36ba09287fbdb2a3f6f7637e97602b25ca"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0018.bin",
+      "size": 716800,
+      "sha": "ac885d4fdf14a8b78e9a0cde2b1ee02933f4b094"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0019.bin",
+      "size": 716800,
+      "sha": "86963ddc2348384a814184f623f6ac6907af0e73"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0020.bin",
+      "size": 716800,
+      "sha": "26ab1c564f6ca10b987e81b5343fbad3f2d6da8d"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0021.bin",
+      "size": 716800,
+      "sha": "39681f70aff203d7eb97aaf1d54c145644646529"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0022.bin",
+      "size": 716800,
+      "sha": "a08dd6746826e99e2148f2bf5d733711fe266c21"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0023.bin",
+      "size": 716800,
+      "sha": "7c2aeee041de8153718c6d7b463498a7a4f8aa71"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0024.bin",
+      "size": 716800,
+      "sha": "8349c14513fb9ebf3fff7021ffc4ab0f01249790"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0025.bin",
+      "size": 716800,
+      "sha": "cafa9d2e1780fb33392b971887c625122ed72678"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0026.bin",
+      "size": 716800,
+      "sha": "17268b6d944909413bea01e0a4b016a1645a12b8"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0027.bin",
+      "size": 716800,
+      "sha": "a68ebae4ffdc8864858488be6a03b3864c68a7ec"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0028.bin",
+      "size": 716800,
+      "sha": "c1cdf8d13f6a87b76ecd0bb09530fe8ccfd9a0fa"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0029.bin",
+      "size": 716800,
+      "sha": "5325a92c9b86f6e40a6ba4350cb922c421a5d0ec"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0030.bin",
+      "size": 716800,
+      "sha": "b4e9fbb523cf691f78f66953f52137dce1e33438"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0031.bin",
+      "size": 716800,
+      "sha": "4e8d00168e84c0dd680d70f7aa96c7b5fdf90103"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0032.bin",
+      "size": 716800,
+      "sha": "93342443003978a6cac3ca513a8e76e1bdb4c8ae"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0033.bin",
+      "size": 716800,
+      "sha": "035fdf892450f8ab000205cb34da2ad1fe974b61"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0034.bin",
+      "size": 716800,
+      "sha": "09a7975f8ecaef72087c6db84bbd71c903eca57d"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0035.bin",
+      "size": 716800,
+      "sha": "191e4645a344222f57fdac02ea8da7fc2bd251dc"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0036.bin",
+      "size": 716800,
+      "sha": "b3cf5dc77d4cda6318afb9b9e746c796905feebc"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0037.bin",
+      "size": 716800,
+      "sha": "abd96b36b8235c164a7869e3374e0d5b88cd1e34"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0038.bin",
+      "size": 716800,
+      "sha": "da2eed04fbed2d47b2623d29a2234bb0bcb33bd0"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0039.bin",
+      "size": 716800,
+      "sha": "a3191fbd0a677a24f2c4fd0b53dd8b3f34ac5d1d"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0040.bin",
+      "size": 716800,
+      "sha": "86512218d1efb1905a433dc667309d941407bd26"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0041.bin",
+      "size": 716800,
+      "sha": "010c859bee6963e268c1ced0e700602b9de3c718"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0042.bin",
+      "size": 716800,
+      "sha": "926fa59e4608d0fd28d8d47fd178d7a10f16656f"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0043.bin",
+      "size": 716800,
+      "sha": "34001ad0c449adbc324fa0e9b6495f02881ccef7"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0044.bin",
+      "size": 716800,
+      "sha": "2ca334760c75cd0f6c018086e3f44763ba70bfad"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0045.bin",
+      "size": 716800,
+      "sha": "95777c70d1dfa905d48c3976bdbaa365f7d2f2c2"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0046.bin",
+      "size": 716800,
+      "sha": "5c5477e30e595bdf00fd9b2f0dda414616b7eefe"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0047.bin",
+      "size": 716800,
+      "sha": "a2a1eb641c58704606605d1acbb063575213e7cd"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0048.bin",
+      "size": 716800,
+      "sha": "994c5818f6aa7f1ab780ad48deabea5d1698fb2d"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0049.bin",
+      "size": 716800,
+      "sha": "4a6f6c3d05b6d7071979f94214bc75595e16b079"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0050.bin",
+      "size": 716800,
+      "sha": "3e0482629579f986a73d4468a8855861452943c5"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0051.bin",
+      "size": 716800,
+      "sha": "fc2a85a8881df6b028b1677e1f349c42c9fba89a"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0052.bin",
+      "size": 716800,
+      "sha": "10b46614dc8002edb8f5f392574848d17e594359"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0053.bin",
+      "size": 716800,
+      "sha": "67672030d4e430e6bf4707595a12fd9049d1b9d6"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0054.bin",
+      "size": 716800,
+      "sha": "7b7bdf45d6110dd1e3ede5446afb83507ca40283"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0055.bin",
+      "size": 716800,
+      "sha": "7760c097912fab66499623d5eb82ff0f594769c6"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0056.bin",
+      "size": 716800,
+      "sha": "9b749c6495280c782bcd2bb1df0b24c306242106"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0057.bin",
+      "size": 716800,
+      "sha": "e732fdae2e91b163ad9ddd059dbff52526cd4be8"
+    },
+    {
+      "file": "backup/scripts/YANXSLY_BUILD_SCRIPT_2026-10-04T10-24-14-473Z/part-0058.bin",
+      "size": 97477,
+      "sha": "373104ef660795a3e25643184ccf1bfd07057608"
+    }
+  ],
+  "createdAt": "2026-10-04T10:26:26.703Z",
+  "note": "Concatenate parts in numeric order to reconstruct the original ZIP."
+}
