@@ -283,10 +283,12 @@ jobs:
       - name: Build APK (FAST ARM64)
         if: steps.p.outputs.mode != 'url'
         working-directory: ${{ env.PROJECT_DIR }}
+        env:
+          BUILD_TYPE: ${{ steps.p.outputs.buildtype }}
         run: |
           set -o pipefail
           rm -f build_report.txt
-          echo "BUILD APK — FAST ARM64"
+          echo "BUILD APK — FAST ARM64 (${BUILD_TYPE})"
           echo "============================"
 
           # Satu output saja: arm64-v8a. Ini memangkas waktu compile + ukuran upload
@@ -317,14 +319,14 @@ jobs:
           rm -rf android/.gradle build/app/intermediates build/app/generated 2>/dev/null || true
 
           : > build_report.txt
-          if flutter build apk --release --target-platform android-arm64 --no-pub --android-skip-build-dependency-validation > build_arm64.txt 2>&1; then
+          if flutter build apk --${BUILD_TYPE} --target-platform android-arm64 --no-pub --android-skip-build-dependency-validation > build_arm64.txt 2>&1; then
             cat build_arm64.txt >> build_report.txt
           else
             cat build_arm64.txt >> build_report.txt
             echo "PRIMARY ARM64 BUILD FAILED — ONE CLEAN RECOVERY" | tee -a build_report.txt
             ./android/gradlew --stop >/dev/null 2>&1 || true
             rm -rf android/.gradle build/app/intermediates build/app/generated 2>/dev/null || true
-            if flutter build apk --release --target-platform android-arm64 --no-pub --android-skip-build-dependency-validation > build_arm64_recovery.txt 2>&1; then
+            if flutter build apk --${BUILD_TYPE} --target-platform android-arm64 --no-pub --android-skip-build-dependency-validation > build_arm64_recovery.txt 2>&1; then
               cat build_arm64_recovery.txt >> build_report.txt
             else
               cat build_arm64_recovery.txt >> build_report.txt
@@ -344,8 +346,8 @@ jobs:
           fi
           test -n "$APK"
           mkdir -p "$GITHUB_WORKSPACE/out"
-          cp "$APK" "$GITHUB_WORKSPACE/out/app-arm64-v8a-release.apk"
-          echo "BUILD OK: $(du -h "$GITHUB_WORKSPACE/out/app-arm64-v8a-release.apk" | cut -f1)"
+          cp "$APK" "$GITHUB_WORKSPACE/out/app-arm64-v8a-${BUILD_TYPE}.apk"
+          echo "BUILD OK (${BUILD_TYPE}): $(du -h "$GITHUB_WORKSPACE/out/app-arm64-v8a-${BUILD_TYPE}.apk" | cut -f1)"
 
       # Artifact dipakai sebagai jalur keselamatan bila Release API mengalami
       # eventual-consistency/429 setelah build selesai. Compression 0 membuat
