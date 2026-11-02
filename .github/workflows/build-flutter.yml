@@ -1,0 +1,503 @@
+# Workflow build APK untuk bot sc cpanel. Taruh di repo worker: .github/workflows/build-flutter.yml
+# Kontrak dengan bot (TIDAK berubah): inputs jobId, userId, payload (JSON string); artifact = apk-<jobId>.
+#   payload mode "zip": { mode, url, tag, buildType?, ... } -> build Flutter dari ZIP project
+#        Source ZIP diambil lewat Release asset ID (tag) memakai token Actions, fallback ke payload.url.
+#        Engine build = build.yml baru (BOTBUILS_FIXED): Flutter 3.41.9, Java 17, APK release arm64.
+#        Tidak butuh scripts/build-profile.sh lagi.
+#   payload mode "url": { mode, url, appName, iconUrl } -> Web2APK (bungkus website jadi APK WebView)
+name: Build APK
+run-name: ${{ inputs.jobId }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      jobId:
+        description: "ID job (dipakai bot untuk mencocokkan run & nama artifact)"
+        required: true
+        type: string
+      userId:
+        description: "ID user"
+        required: false
+        default: "0"
+        type: string
+      payload:
+        description: "JSON payload dari bot"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      JOB_ID: ${{ inputs.jobId }}
+      PAYLOAD: ${{ inputs.payload }}
+      GH_TOKEN: ${{ github.token }}
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+    steps:
+      - name: Baca payload
+        id: p
+        run: |
+          set -euo pipefail
+          echo "$PAYLOAD" | jq -e . >/dev/null || { echo "::error::payload bukan JSON valid"; exit 1; }
+          echo "mode=$(echo "$PAYLOAD" | jq -r '.mode // "zip"')" >> "$GITHUB_OUTPUT"
+          bt=$(echo "$PAYLOAD" | jq -r '.buildType // "release"')
+          case "$bt" in debug|release) ;; *) bt=release ;; esac
+          echo "buildtype=$bt" >> "$GITHUB_OUTPUT"
+          pm=$(echo "$PAYLOAD" | jq -r '.perfMode // "fast"')
+          case "$pm" in fast|low) ;; *) pm=fast ;; esac
+          echo "perfmode=$pm" >> "$GITHUB_OUTPUT"
+          echo "flutter_version=$(echo "$PAYLOAD" | jq -r '.flutterVersion // empty')" >> "$GITHUB_OUTPUT"
+          mkdir -p out
+
+      # ───────────── MODE ZIP: ambil source project ─────────────
+
+      # ───────────── MODE ZIP (build.yml baru) ─────────────
+      - name: Download ZIP project
+        if: steps.p.outputs.mode != 'url'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="$(echo "$PAYLOAD" | jq -r '.tag // empty')"
+          [ -n "$TAG" ] || TAG="$JOB_ID"
+          ZIP_URL="$(echo "$PAYLOAD" | jq -r '.url // empty')"
+          API_BASE="https://api.github.com/repos/${GITHUB_REPOSITORY}"
+
+          rm -f project.zip
+          echo "Resolving release asset from tag: $TAG"
+
+          # Do NOT download browser_download_url directly. For private repos,
+          # GitHub can redirect that URL to objects.githubusercontent.com and
+          # the Authorization header may not survive the redirect. Resolve the
+          # asset through the GitHub API and download it by asset ID instead.
+          RELEASE_JSON="$(curl -fsSL --retry 4 --retry-all-errors \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            -H "User-Agent: DEFFA-BUILD" \
+            "$API_BASE/releases/tags/$TAG" || true)"
+
+          ASSET_ID="$(printf '%s' "$RELEASE_JSON" | jq -r '.assets[]? | select(.name | endswith(".zip")) | .id' 2>/dev/null | head -n1 || true)"
+          ASSET_NAME="$(printf '%s' "$RELEASE_JSON" | jq -r '.assets[]? | select(.name | endswith(".zip")) | .name' 2>/dev/null | head -n1 || true)"
+
+          if [ -n "$ASSET_ID" ] && [ "$ASSET_ID" != "null" ]; then
+            echo "Release asset found: ${ASSET_NAME:-unknown} (id=$ASSET_ID)"
+            curl -fsSL --retry 5 --retry-all-errors \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/octet-stream" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              -H "User-Agent: DEFFA-BUILD" \
+              "$API_BASE/releases/assets/$ASSET_ID" -o project.zip
+          elif [ -n "$ZIP_URL" ]; then
+            echo "::warning::Release asset lookup failed; using legacy zip_url fallback."
+            curl -fsSL --retry 5 --retry-all-errors \
+              -H "Authorization: Bearer $GH_TOKEN" \
+              -H "Accept: application/octet-stream" \
+              -H "User-Agent: DEFFA-BUILD" \
+              "$ZIP_URL" -o project.zip
+          else
+            echo "::error::Release ZIP asset tidak ditemukan dan zip_url kosong."
+            exit 1
+          fi
+
+          test -s project.zip
+          unzip -t project.zip >/dev/null
+          ls -lh project.zip
+
+      - name: Extract ZIP
+        if: steps.p.outputs.mode != 'url'
+        run: |
+          set -euo pipefail
+          rm -rf project_raw
+          mkdir -p project_raw
+          unzip -q project.zip -d project_raw
+          SUB_DIR_COUNT=$(find project_raw -maxdepth 1 -mindepth 1 -type d | wc -l)
+          FILE_COUNT=$(find project_raw -maxdepth 1 -mindepth 1 -type f | wc -l)
+          if [ "$SUB_DIR_COUNT" -eq 1 ] && [ "$FILE_COUNT" -eq 0 ]; then
+            PROJECT_DIR=$(find project_raw -maxdepth 1 -mindepth 1 -type d | head -n 1)
+          else
+            PROJECT_DIR="project_raw"
+          fi
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          test -f "$PROJECT_DIR/pubspec.yaml"
+          test -f "$PROJECT_DIR/lib/main.dart"
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Setup Flutter
+        if: steps.p.outputs.mode != 'url'
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.41.9"
+          channel: stable
+          cache: true
+
+      - name: Repair Android build environment (AUTO)
+        if: steps.p.outputs.mode != 'url'
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(command -v sdkmanager || true)"
+          if [ -z "$SDKMANAGER" ] && [ -n "${ANDROID_SDK_ROOT:-}" ]; then
+            SDKMANAGER="$(find "$ANDROID_SDK_ROOT/cmdline-tools" -type f -name sdkmanager 2>/dev/null | head -n 1 || true)"
+          fi
+          if [ -z "$SDKMANAGER" ]; then
+            echo "::error::sdkmanager tidak ditemukan."
+            exit 1
+          fi
+
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
+          yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+
+          # Cari ndkVersion di seluruh konfigurasi Android, termasuk assignment
+          # ext/variable yang umum pada project Flutter lama. Jika tidak ada,
+          # pakai NDK yang stabil dan tersedia di runner.
+          NDK_VERSION=""
+          if [ -d "$PROJECT_DIR/android" ]; then
+            NDK_VERSION="$(grep -RhoE "ndkVersion[[:space:]]*([=:][[:space:]]*)?['\"][0-9]+\.[0-9]+\.[0-9]+['\"]" "$PROJECT_DIR/android" 2>/dev/null | head -n1 | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+' || true)"
+          fi
+          if [ -z "$NDK_VERSION" ]; then
+            for candidate in 28.2.13676358 27.2.12479018 27.0.12077973; do
+              if [ -d "$SDK_ROOT/ndk/$candidate" ] && [ -f "$SDK_ROOT/ndk/$candidate/source.properties" ]; then
+                NDK_VERSION="$candidate"
+                break
+              fi
+            done
+          fi
+          NDK_VERSION="${NDK_VERSION:-28.2.13676358}"
+          NDK_DIR="$SDK_ROOT/ndk/$NDK_VERSION"
+          if [ ! -f "$NDK_DIR/source.properties" ]; then
+            rm -rf "$NDK_DIR"
+            "$SDKMANAGER" "ndk;$NDK_VERSION"
+          fi
+          test -f "$NDK_DIR/source.properties"
+          echo "ANDROID NDK $NDK_VERSION: READY"
+
+          # Install Android platforms/build-tools requested explicitly by the
+          # project when possible. Missing SDK packages are a common cause of
+          # otherwise valid Flutter projects failing before Gradle compilation.
+          COMPILE_SDK="$(grep -RhoE "compileSdk(Version)?[[:space:]]*([=:][[:space:]]*)?[0-9]+" "$PROJECT_DIR/android" 2>/dev/null | head -n1 | grep -Eo '[0-9]+' | tail -n1 || true)"
+          if [ -n "$COMPILE_SDK" ]; then
+            yes | "$SDKMANAGER" "platforms;android-$COMPILE_SDK" >/dev/null 2>&1 || true
+          fi
+
+          # Gradle wrapper executable bit can be lost when the project ZIP is
+          # created on Android/Windows. Restore it before invoking Flutter.
+          [ ! -f "$PROJECT_DIR/android/gradlew" ] || chmod +x "$PROJECT_DIR/android/gradlew"
+
+      - name: Adaptive Java compatibility
+        if: steps.p.outputs.mode != 'url'
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -euo pipefail
+          WRAPPER="android/gradle/wrapper/gradle-wrapper.properties"
+          GRADLE_VER="$(grep -Eo 'gradle-[0-9]+\.[0-9]+(?:\.[0-9]+)?-' "$WRAPPER" 2>/dev/null | head -n1 | sed -E 's/gradle-([0-9.]+)-/\1/' || true)"
+          echo "Gradle wrapper detected: ${GRADLE_VER:-unknown}"
+          # Gradle 7.6+ berjalan dengan Java 17. Project lama yang memakai Gradle
+          # 7.5 atau lebih rendah lebih aman dengan Java 11. Runner GitHub biasanya
+          # sudah menyediakan kedua JDK sehingga tidak perlu download ulang.
+          if [ -n "$GRADLE_VER" ]; then
+            MAJOR_MINOR="$(echo "$GRADLE_VER" | cut -d. -f1-2)"
+            if [ "$(printf '%s\n' "$MAJOR_MINOR" '7.6' | sort -V | head -n1)" = "$MAJOR_MINOR" ] && [ "$MAJOR_MINOR" != "7.6" ]; then
+              JAVA11="$(find /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/11* -maxdepth 2 -type d -name 'x64' 2>/dev/null | head -n1 || true)"
+              if [ -n "$JAVA11" ] && [ -x "$JAVA11/bin/java" ]; then
+                echo "JAVA_HOME=$JAVA11" >> "$GITHUB_ENV"
+                echo "PATH=$JAVA11/bin:$PATH" >> "$GITHUB_ENV"
+                echo "Adaptive Java: 11"
+              fi
+            fi
+          fi
+
+      - name: Inspect Android/Gradle compatibility
+        if: steps.p.outputs.mode != 'url'
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -euo pipefail
+          echo "=== Flutter ==="
+          flutter --version | head -n 3
+          echo "=== Java ==="
+          java -version 2>&1 | head -n 3
+          echo "=== Gradle wrapper ==="
+          if [ -f android/gradle/wrapper/gradle-wrapper.properties ]; then
+            grep -E "^distributionUrl=" android/gradle/wrapper/gradle-wrapper.properties || true
+          fi
+          echo "=== Android plugin/Kotlin hints ==="
+          grep -RhoE 'com\.android\.tools\.build:gradle:[0-9.]+|kotlin[^:]*version[ =]+.[0-9.]+.|ext\.kotlin_version[ =]+.[0-9.]+.' android 2>/dev/null | head -n 20 || true
+          echo "=== SDK/NDK ==="
+          grep -RhoE 'compileSdk(Version)?[ =:]+[0-9]+|targetSdk(Version)?[ =:]+[0-9]+|minSdk(Version)?[ =:]+[0-9]+|ndkVersion[ =:]+.[0-9.]+.' android 2>/dev/null | head -n 30 || true
+          echo "COMPATIBILITY INSPECTION: OK"
+
+      - name: Cache Flutter/Dart packages
+        if: steps.p.outputs.mode != 'url'
+        uses: actions/cache@v4
+        with:
+          path: ~/.pub-cache
+          key: ${{ runner.os }}-pub-${{ hashFiles('**/pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Cache Gradle
+        if: steps.p.outputs.mode != 'url'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Get dependencies (quiet)
+        if: steps.p.outputs.mode != 'url'
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set +e
+          flutter config --no-analytics >/dev/null 2>&1 || true
+          RC=1
+          for attempt in 1 2 3; do
+            flutter pub get > pub_get_report.txt 2>&1 && { RC=0; break; }
+            echo "pub get attempt $attempt/3 gagal; retry..."
+            sleep $((attempt * 2))
+          done
+          if [ "$RC" -ne 0 ]; then
+            echo
+            echo "BUILD FAILED"
+            echo "Step: Dependencies"
+            echo "============================"
+            echo "Error utama:"
+            grep -Ei "error|failed|exception|version solving failed|because .* depends on" pub_get_report.txt | head -n 12 || tail -n 20 pub_get_report.txt
+            echo "============================"
+            echo "Log lengkap: pub_get_report.txt"
+            exit "$RC"
+          fi
+          echo "DEPENDENCIES: OK"
+
+      - name: Build APK (FAST ARM64)
+        if: steps.p.outputs.mode != 'url'
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          set -o pipefail
+          rm -f build_report.txt
+          echo "BUILD APK — FAST ARM64"
+          echo "============================"
+
+          # Satu output saja: arm64-v8a. Ini memangkas waktu compile + ukuran upload
+          # dibanding split 3 ABI dan menghindari universal APK yang terlalu besar.
+          export GRADLE_OPTS="-Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.workers.max=4 -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8"
+          export ORG_GRADLE_PROJECT_org.gradle.parallel=true
+
+          mkdir -p android
+          touch android/gradle.properties
+          grep -q '^android.useAndroidX=' android/gradle.properties || echo 'android.useAndroidX=true' >> android/gradle.properties
+          grep -q '^android.enableJetifier=' android/gradle.properties || echo 'android.enableJetifier=true' >> android/gradle.properties
+          grep -q '^org.gradle.jvmargs=' android/gradle.properties || echo 'org.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8' >> android/gradle.properties
+
+          # AGP 8+ namespace auto-repair untuk project Flutter lama.
+          APP_GRADLE="android/app/build.gradle"
+          if [ -f "$APP_GRADLE" ] && ! grep -qE '^\s*namespace[ =]' "$APP_GRADLE"; then
+            PKG="$(grep -RhoE "package=['\"][A-Za-z_][A-Za-z0-9_.]*['\"]" android/app/src/main/AndroidManifest.xml android/app/src/debug/AndroidManifest.xml android/app/src/profile/AndroidManifest.xml 2>/dev/null | head -n1 | sed -E "s/.*package=['\"]([^'\"]+).*/\1/" || true)"
+            if [ -z "$PKG" ]; then
+              PKG="$(grep -Eo "applicationId[[:space:]]+['\"][A-Za-z_][A-Za-z0-9_.]*['\"]" "$APP_GRADLE" 2>/dev/null | head -n1 | sed -E "s/.*['\"]([^'\"]+)['\"].*/\1/" || true)"
+            fi
+            if [ -n "$PKG" ]; then
+              sed -i "/^[[:space:]]*android[[:space:]]*{/a\    namespace \"$PKG\"" "$APP_GRADLE"
+              echo "AUTO-FIX namespace=$PKG"
+            fi
+          fi
+
+          chmod +x android/gradlew 2>/dev/null || true
+          ./android/gradlew --stop >/dev/null 2>&1 || true
+          rm -rf android/.gradle build/app/intermediates build/app/generated 2>/dev/null || true
+
+          : > build_report.txt
+          if flutter build apk --release --target-platform android-arm64 --no-pub --android-skip-build-dependency-validation > build_arm64.txt 2>&1; then
+            cat build_arm64.txt >> build_report.txt
+          else
+            cat build_arm64.txt >> build_report.txt
+            echo "PRIMARY ARM64 BUILD FAILED — ONE CLEAN RECOVERY" | tee -a build_report.txt
+            ./android/gradlew --stop >/dev/null 2>&1 || true
+            rm -rf android/.gradle build/app/intermediates build/app/generated 2>/dev/null || true
+            if flutter build apk --release --target-platform android-arm64 --no-pub --android-skip-build-dependency-validation > build_arm64_recovery.txt 2>&1; then
+              cat build_arm64_recovery.txt >> build_report.txt
+            else
+              cat build_arm64_recovery.txt >> build_report.txt
+              echo
+              echo "BUILD FAILED"
+              echo "============================"
+              grep -Ei "(^lib/[^:]+:[0-9]+:[0-9]+: (Error|error):|^error •|Execution failed for task|Gradle task .* failed|Could not resolve|Could not find|requires a higher|version solving failed|The current Dart SDK version|NDK|namespace|compileSdk|minSdk|Kotlin|Java)" build_report.txt | tail -n 50 || true
+              echo
+              tail -n 100 build_report.txt || true
+              exit 1
+            fi
+          fi
+
+          APK="$(find build/app/outputs/flutter-apk -maxdepth 1 -type f -name '*arm64*.apk' -print -quit)"
+          if [ -z "$APK" ]; then
+            APK="$(find build/app/outputs/flutter-apk -maxdepth 1 -type f -name '*.apk' -print -quit)"
+          fi
+          test -n "$APK"
+          mkdir -p "$GITHUB_WORKSPACE/out"
+          cp "$APK" "$GITHUB_WORKSPACE/out/app-arm64-v8a-release.apk"
+          echo "BUILD OK: $(du -h "$GITHUB_WORKSPACE/out/app-arm64-v8a-release.apk" | cut -f1)"
+
+      # Artifact dipakai sebagai jalur keselamatan bila Release API mengalami
+      # eventual-consistency/429 setelah build selesai. Compression 0 membuat
+      # ZIP artifact hampir sama dengan ukuran APK sehingga upload/download cepat.
+
+      # ───────────── MODE URL: Web2APK ─────────────
+      - uses: gradle/actions/setup-gradle@v4
+        if: steps.p.outputs.mode == 'url'
+        with:
+          gradle-version: "8.7"
+
+      - name: Generate project Web2APK
+        if: steps.p.outputs.mode == 'url'
+        run: |
+          set -euo pipefail
+          mkdir -p out w2a
+          python3 - <<'PY'
+          import os, json, hashlib, re, subprocess
+          from xml.sax.saxutils import escape
+          pl = json.loads(os.environ["PAYLOAD"])
+          url = (pl.get("url") or "").strip()
+          if not re.match(r"^https?://", url):
+              raise SystemExit("::error::URL harus diawali http:// atau https://")
+          name = (pl.get("appName") or "Web App").strip()[:40] or "Web App"
+          icon = (pl.get("iconUrl") or "").strip()
+          pkg = "com.w2a.app" + hashlib.sha1(url.encode()).hexdigest()[:8]
+          def android_str(s):
+              s = escape(s).replace("\\", "\\\\").replace("'", "\\'").replace('"', '\\"')
+              return ("\\" + s) if s[:1] in "@?" else s
+          base = "w2a"
+          pdir = f"{base}/app/src/main/java/{pkg.replace('.', '/')}"
+          for d in (pdir, f"{base}/app/src/main/res/values"):
+              os.makedirs(d, exist_ok=True)
+          open(f"{base}/settings.gradle", "w").write(
+              "pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }\n"
+              "dependencyResolutionManagement { repositories { google(); mavenCentral() } }\n"
+              "rootProject.name = 'w2a'\ninclude ':app'\n")
+          open(f"{base}/build.gradle", "w").write(
+              "plugins { id 'com.android.application' version '8.5.2' apply false }\n")
+          open(f"{base}/gradle.properties", "w").write(
+              "org.gradle.jvmargs=-Xmx2g\nandroid.useAndroidX=true\n")
+          open(f"{base}/local.properties", "w").write("sdk.dir=" + os.environ.get("ANDROID_HOME", "/usr/local/lib/android/sdk") + "\n")
+          open(f"{base}/app/build.gradle", "w").write(f"""plugins {{ id 'com.android.application' }}
+          android {{
+              namespace '{pkg}'
+              compileSdk 34
+              defaultConfig {{
+                  applicationId '{pkg}'
+                  minSdk 24
+                  targetSdk 34
+                  versionCode 1
+                  versionName '1.0'
+              }}
+              buildTypes {{ release {{ minifyEnabled false }} }}
+              compileOptions {{
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }}
+          }}
+          """.replace("\n          ", "\n"))
+          has_icon = False
+          if icon.startswith("http"):
+              rd = f"{base}/app/src/main/res/mipmap-xxxhdpi"
+              os.makedirs(rd, exist_ok=True)
+              try:
+                  subprocess.run(["curl", "-fL", "--max-time", "60", "-o", "icon.src", icon], check=True)
+                  tool = "magick" if subprocess.call("command -v magick >/dev/null", shell=True) == 0 else "convert"
+                  subprocess.run([tool, "icon.src[0]", "-resize", "192x192!", f"png:{rd}/ic_launcher.png"], check=True)
+                  has_icon = True
+              except Exception as e:
+                  print("::warning::icon gagal dipakai, pakai ikon bawaan:", e)
+          open(f"{base}/app/src/main/res/values/strings.xml", "w").write(
+              f'<?xml version="1.0" encoding="utf-8"?>\n<resources><string name="app_name">{android_str(name)}</string></resources>\n')
+          open(f"{base}/app/src/main/AndroidManifest.xml", "w").write(f"""<?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <application android:label="@string/app_name" {'android:icon="@mipmap/ic_launcher"' if has_icon else ''}
+                  android:usesCleartextTraffic="true" android:allowBackup="true"
+                  android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+                  <activity android:name=".MainActivity" android:exported="true"
+                      android:configChanges="orientation|screenSize|keyboardHidden">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          """.replace("\n          ", "\n"))
+          open(f"{pdir}/MainActivity.java", "w").write(f"""package {pkg};
+          import android.app.Activity;
+          import android.os.Bundle;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          public class MainActivity extends Activity {{
+              private WebView web;
+              @Override protected void onCreate(Bundle b) {{
+                  super.onCreate(b);
+                  web = new WebView(this);
+                  setContentView(web);
+                  WebSettings s = web.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  s.setMediaPlaybackRequiresUserGesture(false);
+                  web.setWebViewClient(new WebViewClient());
+                  web.loadUrl({json.dumps(url)});
+              }}
+              @Override public void onBackPressed() {{
+                  if (web != null && web.canGoBack()) web.goBack(); else super.onBackPressed();
+              }}
+          }}
+          """.replace("\n          ", "\n"))
+          print("Web2APK siap:", name, pkg, url)
+          PY
+
+      - name: Build Web2APK
+        if: steps.p.outputs.mode == 'url'
+        working-directory: w2a
+        run: |
+          set -eo pipefail
+          gradle assembleRelease --no-daemon --stacktrace
+          find . -path '*/build/outputs/apk/*' -name '*.apk' -exec cp -v {} "$GITHUB_WORKSPACE/out/" \;
+
+      # ───────────── Tanda tangan APK (supaya bisa diinstall) ─────────────
+
+      - name: Pastikan APK ada & bertanda tangan
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          apks=(out/*.apk)
+          [ ${#apks[@]} -gt 0 ] || { echo "::error::Build selesai tapi tidak ada file .apk yang dihasilkan"; exit 1; }
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n1)
+          keytool -genkeypair -keystore ks.jks -storepass android -keypass android -alias key \
+            -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US" >/dev/null 2>&1
+          for f in "${apks[@]}"; do
+            if "$BT/apksigner" verify "$f" >/dev/null 2>&1; then
+              echo "sudah bertanda tangan: $f"
+            else
+              echo "menandatangani: $f"
+              "$BT/zipalign" -p -f 4 "$f" "$f.aligned"
+              mv "$f.aligned" "$f"
+              "$BT/apksigner" sign --ks ks.jks --ks-pass pass:android --key-pass pass:android "$f"
+            fi
+          done
+          ls -lh out
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-${{ inputs.jobId }}
+          path: out/*.apk
+          if-no-files-found: error
+          retention-days: 3
