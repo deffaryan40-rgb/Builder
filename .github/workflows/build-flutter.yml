@@ -292,7 +292,6 @@ jobs:
           # Satu output saja: arm64-v8a. Ini memangkas waktu compile + ukuran upload
           # dibanding split 3 ABI dan menghindari universal APK yang terlalu besar.
           export GRADLE_OPTS="-Dorg.gradle.daemon=true -Dorg.gradle.parallel=true -Dorg.gradle.caching=true -Dorg.gradle.workers.max=4 -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8"
-          export ORG_GRADLE_PROJECT_org.gradle.parallel=true
 
           mkdir -p android
           touch android/gradle.properties
